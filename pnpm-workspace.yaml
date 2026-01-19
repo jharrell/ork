@@ -9,7 +9,4 @@ onlyBuiltDependencies:
 
 packages:
   - 'packages/*'
-
-peerDependencyRules:
-  allowedVersions:
-    '@octokit/core': '>=3'
+  - 'examples/*'
