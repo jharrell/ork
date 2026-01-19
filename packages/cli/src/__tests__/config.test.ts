@@ -144,3 +144,13 @@ describe('Configuration Bridge Utilities', () => {
     })
   })
 })
+
+function sanitizeSnapshot(str: string): string {
+  // Sanitize the Prisma config path to not break on Windows.
+  str = str.replace(
+    /Loaded Prisma config from "?(.*)(\/|\\)prisma\.config\.ts"?/g,
+    'Loaded Prisma config from "sanitized $1/prisma.config.ts path"',
+  )
+
+  return str
+}
