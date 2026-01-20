@@ -132,7 +132,7 @@ export class GenerateCommand extends BaseCommand {
  * Register generate command
  */
 export function registerGenerateCommand(program: any) {
-  const generateCmd = program
+  program
     .command('generate')
     .description('Generate Ork client from schema')
     .option('-o, --output <path>', 'Output directory for generated client')

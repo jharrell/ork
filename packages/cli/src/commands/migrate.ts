@@ -1,10 +1,17 @@
 import { findSchemaFile } from '@ork-orm/config'
+import type { AnyKyselyDatabase } from '@ork-orm/migrate'
+import type { Kysely } from 'kysely'
 import prompts from 'prompts'
 
 import type { CommandResult, MigrateOptions } from '../types.js'
 import { BaseCommand } from '../utils/command.js'
 import { cliCreateKyselyFromConfig } from '../utils/config-error-handler.js'
 import { logger } from '../utils/logger.js'
+
+/** Cast Kysely instance to AnyKyselyDatabase for migrate API compatibility */
+function toMigrateDb(kysely: Kysely<unknown>): AnyKyselyDatabase {
+  return kysely as unknown as AnyKyselyDatabase
+}
 
 /**
  * Migration command that integrates with Kysely instances and migration engine
@@ -31,7 +38,7 @@ export class MigrateCommand extends BaseCommand {
       logger.info('Generating migration preview...')
 
       // Generate migration diff for SQL preview
-      const migrationDiff = await migrate.diff(kyselyInstance, schemaPath)
+      const migrationDiff = await migrate.diff(toMigrateDb(kyselyInstance), schemaPath)
 
       if (migrationDiff.statements.length === 0) {
         logger.success('No migration changes detected. Database is up to date!')
@@ -62,7 +69,7 @@ export class MigrateCommand extends BaseCommand {
 
       // Apply migration with progress reporting
       const result = await migrate.applyWithConfirmation(
-        kyselyInstance,
+        toMigrateDb(kyselyInstance),
         schemaPath,
         {
           enabled: false, // We already handled confirmation above
@@ -253,7 +260,7 @@ class MigrateStatusCommand extends BaseCommand {
       const migrate = new OrkMigrate()
 
       // Check if schema is up to date
-      const isValid = await migrate.validate(kyselyInstance, schemaPath)
+      const isValid = await migrate.validate(toMigrateDb(kyselyInstance), schemaPath)
 
       if (isValid) {
         logger.success('✅ Database is up to date with schema')
@@ -261,7 +268,7 @@ class MigrateStatusCommand extends BaseCommand {
         logger.warn('⚠️  Database is out of sync with schema')
 
         // Show what changes are pending
-        const diff = await migrate.diff(kyselyInstance, schemaPath)
+        const diff = await migrate.diff(toMigrateDb(kyselyInstance), schemaPath)
         if (diff.statements.length > 0) {
           logger.info(`📋 ${diff.statements.length} pending migration(s)`)
           logger.info('Run `ork migrate dev` to apply changes')
@@ -301,7 +308,7 @@ class MigrateHistoryCommand extends BaseCommand {
       const migrate = new OrkMigrate()
 
       // Get migration history
-      const history = await migrate.getHistory(kyselyInstance)
+      const history = await migrate.getHistory(toMigrateDb(kyselyInstance))
 
       if (history.length === 0) {
         logger.info('No migrations have been applied yet')
@@ -360,7 +367,7 @@ class MigrateRollbackCommand extends BaseCommand {
       const migrate = new OrkMigrate()
 
       // Get latest migration
-      const history = await migrate.getHistory(kyselyInstance)
+      const history = await migrate.getHistory(toMigrateDb(kyselyInstance))
 
       if (history.length === 0) {
         logger.info('No migrations to rollback')
@@ -387,7 +394,7 @@ class MigrateRollbackCommand extends BaseCommand {
       logger.info(`   Applied: ${latestMigration.appliedAt.toLocaleString()}`)
 
       // Generate rollback preview
-      const rollbackInfo = await migrate.generateRollback(kyselyInstance, latestMigration.id)
+      const rollbackInfo = await migrate.generateRollback(toMigrateDb(kyselyInstance), latestMigration.id)
 
       if (!rollbackInfo.canRollback) {
         logger.error('❌ This migration cannot be rolled back automatically')
@@ -452,7 +459,7 @@ class MigrateRollbackCommand extends BaseCommand {
       logger.info('Executing rollback...')
 
       // Execute rollback
-      const result = await migrate.rollback(kyselyInstance, latestMigration.id)
+      const result = await migrate.rollback(toMigrateDb(kyselyInstance), latestMigration.id)
 
       await kyselyInstance.destroy()
 
