@@ -30,8 +30,8 @@ async function main() {
 }
 
 // Handle unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error(`Unhandled Rejection at: ${promise}, reason: ${reason}`)
+process.on('unhandledRejection', (reason, _promise) => {
+  logger.error(`Unhandled Rejection: ${reason instanceof Error ? reason.message : String(reason)}`)
   process.exit(1)
 })
 

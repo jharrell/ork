@@ -1,6 +1,7 @@
 import { watch } from 'node:fs'
 
 import { findSchemaFile } from '@ork-orm/config'
+import type { AnyKyselyDatabase } from '@ork-orm/migrate'
 import { OrkMigrate } from '@ork-orm/migrate'
 
 import type { CommandResult, DevOptions } from '../types.js'
@@ -90,7 +91,8 @@ export class DevCommand extends BaseCommand {
     })
 
     try {
-      const preview = await migrate.generateMigrationPreview(kysely, schemaPath)
+      const db = kysely as unknown as AnyKyselyDatabase
+      const preview = await migrate.generateMigrationPreview(db, schemaPath)
 
       if (preview.statements.length === 0) {
         logger.success('No migration changes detected. Database is up to date!')
@@ -109,7 +111,7 @@ export class DevCommand extends BaseCommand {
         requireExplicitConfirmation: !options.yes,
       } as const
 
-      const result = await migrate.applyWithConfirmation(kysely, schemaPath, promptConfig, {
+      const result = await migrate.applyWithConfirmation(db, schemaPath, promptConfig, {
         level: 'info',
         logStatements: true,
         logExecutionTimes: true,

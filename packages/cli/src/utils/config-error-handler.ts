@@ -1,11 +1,8 @@
-import type {
-  ConfigLoadOptions,
-  ConfigLoadResult,
+import type { ConfigLoadOptions, ConfigLoadResult, KyselyResult, OrkConfig } from '@ork-orm/config'
+import {
   createKyselyDialect,
   createKyselyFromConfig,
   createKyselyFromUrl,
-  type DatabaseProvider,
-  KyselyResult,
   loadOrkConfig,
   PROVIDER_METADATA,
   SUPPORTED_PROVIDERS,
@@ -204,19 +201,20 @@ export class ConfigErrorHandler {
   /**
    * Create Kysely dialect with enhanced error handling
    */
-  static async createKyselyDialect(provider: DatabaseProvider, connectionString: string) {
+  static async createKyselyDialect(config: OrkConfig) {
     try {
-      return await createKyselyDialect(provider, connectionString)
+      return await createKyselyDialect(config)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
+      const provider = config.datasource.provider
       const metadata = PROVIDER_METADATA[provider]
 
       if (errorMessage.includes('Cannot find module')) {
-        const installCmd = metadata?.installCommand || `npm install ${metadata?.packageName}`
+        const installCmd = `npm install ${metadata.packages.join(' ')}`
 
         logger.errorWithSuggestions(`Missing ${provider} database driver`, [
           `Install the driver: ${installCmd}`,
-          `Add ${metadata?.packageName} to your dependencies`,
+          `Add ${metadata.packages.join(', ')} to your dependencies`,
           'Restart your development server after installation',
         ])
         throw new Error(`Missing ${provider} driver`)
@@ -229,18 +227,17 @@ export class ConfigErrorHandler {
   /**
    * Validate database connection with enhanced error handling
    */
-  static async validateConnection(provider: DatabaseProvider, connectionString: string): Promise<boolean> {
+  static async validateConnection(config: OrkConfig): Promise<boolean> {
     try {
-      return await validateConnection(provider, connectionString)
+      return await validateConnection(config)
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      const metadata = PROVIDER_METADATA[provider]
+      const provider = config.datasource.provider
 
       logger.errorWithSuggestions(`Connection validation failed for ${provider}`, [
         'Check that your database server is running',
         'Verify connection string format and credentials',
         'Ensure database exists and is accessible',
-        metadata?.docs ? `See docs: ${metadata.docs}` : 'Check provider documentation',
+        'Check provider documentation',
       ])
       throw error
     }
@@ -279,8 +276,9 @@ export class ConfigErrorHandler {
 }
 
 // Re-export CLI-specific functions with better error handling
-export const cliLoadOrkConfig = ConfigErrorHandler.loadOrkConfig
-export const cliCreateKyselyFromConfig = ConfigErrorHandler.createKyselyFromConfig
-export const cliCreateKyselyFromUrl = ConfigErrorHandler.createKyselyFromUrl
-export const cliCreateKyselyDialect = ConfigErrorHandler.createKyselyDialect
-export const cliValidateConnection = ConfigErrorHandler.validateConnection
+// Bind static methods to preserve `this` context for internal helper calls
+export const cliLoadOrkConfig = ConfigErrorHandler.loadOrkConfig.bind(ConfigErrorHandler)
+export const cliCreateKyselyFromConfig = ConfigErrorHandler.createKyselyFromConfig.bind(ConfigErrorHandler)
+export const cliCreateKyselyFromUrl = ConfigErrorHandler.createKyselyFromUrl.bind(ConfigErrorHandler)
+export const cliCreateKyselyDialect = ConfigErrorHandler.createKyselyDialect.bind(ConfigErrorHandler)
+export const cliValidateConnection = ConfigErrorHandler.validateConnection.bind(ConfigErrorHandler)
