@@ -1,7 +1,7 @@
 /**
  * Generate schema content for a specific provider
  */
-export function generateSchemaContent(provider: string, url: string = ''): string {
+export function generateSchemaContent(provider: string, _url: string = ''): string {
   const baseSchema = `// This is your Ork schema file (.prisma syntax).
 
 generator client {
