@@ -1,0 +1,78 @@
+{
+  "name": "@ork-orm/client",
+  "version": "0.0.1-alpha.1",
+  "description": "Type-safe database client with CRUD operations for Ork ORM",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jharrell/ork.git",
+    "directory": "packages/client"
+  },
+  "scripts": {
+    "dev": "tsup --watch",
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run build"
+  },
+  "files": [
+    "README.md",
+    "dist"
+  ],
+  "keywords": [
+    "ork",
+    "client",
+    "orm",
+    "typescript",
+    "kysely",
+    "database",
+    "crud"
+  ],
+  "author": "Ork Team",
+  "license": "Apache-2.0",
+  "sideEffects": false,
+  "dependencies": {
+    "@ork-orm/config": "workspace:*",
+    "@ork-orm/field-translator": "workspace:*",
+    "@ork-orm/schema-parser": "workspace:*",
+    "dedent": "1.7.0",
+    "kysely": "^0.27.4"
+  },
+  "devDependencies": {
+    "@swc/core": "1.11.5",
+    "@testcontainers/postgresql": "^10.18.0",
+    "@types/node": "^20.0.0",
+    "@types/pg": "^8.11.10",
+    "@vitest/ui": "3.2.4",
+    "better-sqlite3": "^12.5.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "pg": "^8.13.1",
+    "tsup": "^8.3.5",
+    "tsx": "4.19.3",
+    "typescript": "5.4.5",
+    "vitest": "3.2.4"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.1.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

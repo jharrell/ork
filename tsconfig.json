@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.build.regular.json",
+  "compilerOptions": {
+    "emitDeclarationOnly": false,
+    "noEmit": true
+  },
+  "include": ["./**/*", ".eslintrc.js"],
+  "exclude": [
+    "**/dist",
+    "**/build",
+    "**/fixtures",
+    "**/node_modules",
+    "**/.prisma/client",
+    "./packages/cli/preinstall"
+  ]
+}

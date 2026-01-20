@@ -1,0 +1,30 @@
+[
+  {
+    "name": "ork",
+    "path": "packages/cli"
+  },
+  {
+    "name": "@ork-orm/client",
+    "path": "packages/client"
+  },
+  {
+    "name": "@ork-orm/schema-parser",
+    "path": "packages/schema-parser"
+  },
+  {
+    "name": "@ork-orm/field-translator",
+    "path": "packages/field-translator"
+  },
+  {
+    "name": "@ork-orm/migrate",
+    "path": "packages/migrate"
+  },
+  {
+    "name": "@ork-orm/config",
+    "path": "packages/config"
+  },
+  {
+    "name": "unplugin-ork",
+    "path": "packages/unplugin"
+  }
+]
