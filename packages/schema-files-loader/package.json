@@ -1,0 +1,28 @@
+{
+  "name": "@prisma/schema-files-loader",
+  "version": "0.0.0",
+  "description": "Package for resolving and loading schema files when schema is split into multiple files",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prisma/prisma.git",
+    "directory": "packages/schema-files-loader"
+  },
+  "license": "Apache-2.0",
+  "author": "Serhii Tatarintsev <tatarintsev@prisma.io>",
+  "scripts": {
+    "dev": "DEV=true tsx helpers/build.ts",
+    "build": "tsx helpers/build.ts",
+    "test": "vitest run",
+    "prepublishOnly": "pnpm run build"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "dependencies": {
+    "@prisma/prisma-schema-wasm": "6.18.0-6.9bf76dbea6c9e34d59a3577015bd1e94bfda7624",
+    "fs-extra": "11.3.0"
+  }
+}

@@ -1,522 +1,334 @@
-/**
- * Options for configuring migration operations
- */
-export interface MigrationOptions {
-  /** Whether to run migrations in a transaction (default: true) */
-  useTransaction?: boolean
-  /** Timeout for migration operations in milliseconds */
-  timeout?: number
-  /** Whether to validate schema before applying migrations */
-  validateSchema?: boolean
-  /** Custom migration table name (default: '_ork_migrations') */
-  migrationTableName?: string
+// See engine's JSON RPC types
+// https://prisma.github.io/prisma-engines/doc/migration_core/json_rpc/types/index.html
+//
+// https://www.jsonrpc.org/specification
+
+import type { ActiveConnectorType, SqlQueryOutput } from '@prisma/generator'
+import type { MigrateTypes } from '@prisma/internals'
+
+import type { IntrospectionViewDefinition } from './views/handleViewsIO'
+
+// A JSON-RPC request or response.
+export interface RpcRequestResponse {
+  id: number
+  jsonrpc: '2.0'
 }
 
-/**
- * Result of a migration diff operation
- */
-export interface MigrationDiff {
-  /** SQL statements to be executed */
-  statements: string[]
-  /** Human-readable summary of changes */
-  summary: MigrationSummary
-  /** Whether the migration contains potentially destructive operations */
-  hasDestructiveChanges: boolean
-  /** Estimated impact of the migration */
-  impact: MigrationImpact
+// should this be result: T; error: never? (and same below)
+export interface RpcSuccessResponse<T> extends RpcRequestResponse {
+  result: T
 }
 
-/**
- * Summary of migration changes
- */
-export interface MigrationSummary {
-  /** Tables to be created */
-  tablesCreated: string[]
-  /** Tables to be modified */
-  tablesModified: string[]
-  /** Tables to be dropped */
-  tablesDropped: string[]
-  /** Columns to be added */
-  columnsAdded: Array<{ table: string; column: string }>
-  /** Columns to be modified */
-  columnsModified: Array<{ table: string; column: string; change: string }>
-  /** Columns to be dropped */
-  columnsDropped: Array<{ table: string; column: string }>
-  /** Indexes to be created */
-  indexesCreated: string[]
-  /** Indexes to be dropped */
-  indexesDropped: string[]
-  /** Foreign keys to be created */
-  foreignKeysCreated: string[]
-  /** Foreign keys to be dropped */
-  foreignKeysDropped: string[]
-  /** Enums to be created */
-  enumsCreated: string[]
-  /** Enums to be modified */
-  enumsModified: string[]
-  /** Enums to be dropped */
-  enumsDropped: string[]
+interface RpcErrorResponse<T> extends RpcRequestResponse {
+  error: T
 }
 
-/**
- * Impact assessment of a migration
- */
-export interface MigrationImpact {
-  /** Risk level of the migration */
-  riskLevel: 'low' | 'medium' | 'high'
-  /** Estimated time to complete */
-  estimatedDuration: string
-  /** Warnings about potential issues */
-  warnings: string[]
-  /** Tables that may be locked during migration */
-  tablesAffected: string[]
+export type RpcResponse<T, E> = RpcSuccessResponse<T> | RpcErrorResponse<E>
+
+export interface RPCPayload extends RpcRequestResponse {
+  method: string
+  params: any
 }
 
-/**
- * Result of applying a migration
- */
-export interface MigrationResult {
-  /** Whether the migration was successful */
-  success: boolean
-  /** Number of statements executed */
-  statementsExecuted: number
-  /** Time taken to execute the migration */
-  executionTime: number
-  /** Any errors that occurred */
-  errors: MigrationError[]
-  /** Migration ID that was applied */
-  migrationId?: string
-}
-
-/**
- * Migration error information
- */
-export interface MigrationError {
-  /** Error message */
+interface UserFacingError {
+  is_panic: boolean
   message: string
-  /** SQL statement that caused the error */
-  statement?: string
-  /** Error code from the database */
-  code?: string
-  /** Stack trace if available */
-  stack?: string
+  error_code?: string
+  meta?: unknown
 }
 
-/**
- * Migration history entry
- */
-export interface MigrationHistoryEntry {
-  /** Unique migration ID */
-  id: string
-  /** Migration name/description */
-  name: string
-  /** Checksum of the migration */
-  checksum: string
-  /** When the migration was applied */
-  appliedAt: Date
-  /** Time taken to execute */
-  executionTime: number
-  /** Whether the migration was successful */
-  success: boolean
-}
-
-/** Migration state for tracking concurrent operations */
-export interface MigrationState {
-  /** Whether a migration is currently in progress */
-  isRunning: boolean
-  /** ID of the currently running migration */
-  runningMigrationId?: string
-  /** Process ID or session ID of the running migration */
-  processId?: string
-  /** When the current migration started */
-  startedAt?: Date
-  /** Lock timeout in milliseconds */
-  lockTimeout?: number
-}
-
-/** Migration lock for preventing concurrent operations */
-export interface MigrationLock {
-  /** Unique lock ID */
-  id: string
-  /** Process or session identifier */
-  processId: string
-  /** When the lock was acquired */
-  acquiredAt: Date
-  /** When the lock expires */
-  expiresAt: Date
-  /** Migration ID being executed */
-  migrationId: string
-}
-
-/** Migration rollback information */
-export interface MigrationRollback {
-  /** Original migration ID */
-  migrationId: string
-  /** Rollback SQL statements */
-  rollbackStatements: string[]
-  /** Rollback checksum */
-  rollbackChecksum: string
-  /** Whether rollback is available */
-  canRollback: boolean
-  /** Rollback warnings */
-  warnings: string[]
-}
-
-/** Enhanced migration history entry with rollback support */
-export interface EnhancedMigrationHistoryEntry extends MigrationHistoryEntry {
-  /** Rollback information if available */
-  rollback?: MigrationRollback
-  /** Migration statements that were executed */
-  statements: string[]
-  /** Schema version after this migration */
-  schemaVersion?: string
-  /** Migration dependencies */
-  dependencies: string[]
-}
-
-/** Migration validation result */
-export interface MigrationValidation {
-  /** Whether the migration is valid */
-  isValid: boolean
-  /** Validation errors */
-  errors: string[]
-  /** Validation warnings */
-  warnings: string[]
-  /** Checksum validation result */
-  checksumValid: boolean
-  /** Schema integrity check result */
-  schemaIntegrityValid: boolean
-}
-
-/** Enhanced migration summary with detailed information */
-export interface DetailedMigrationSummary extends MigrationSummary {
-  /** Total number of operations */
-  totalOperations: number
-  /** Estimated data impact */
-  dataImpact: {
-    /** Estimated rows affected */
-    estimatedRowsAffected: number
-    /** Tables with potential data loss */
-    tablesWithDataLoss: string[]
-    /** Operations that cannot be undone */
-    irreversibleOperations: string[]
-  }
-  /** Performance impact assessment */
-  performanceImpact: {
-    /** Operations that may cause downtime */
-    downtimeOperations: string[]
-    /** Operations that may be slow */
-    slowOperations: string[]
-    /** Recommended maintenance window */
-    recommendedMaintenanceWindow: string
-  }
-  /** Dependency information */
-  dependencies: {
-    /** Tables that depend on modified tables */
-    dependentTables: string[]
-    /** Foreign key constraints affected */
-    affectedConstraints: string[]
-    /** Views that may be affected */
-    affectedViews: string[]
+export type UserFacingErrorWithMeta = {
+  is_panic: boolean
+  message: string
+  error_code: 'P3006'
+  meta: {
+    migration_name: string
+    inner_error?: {
+      is_panic: boolean
+      message: string
+      backtrace: string
+    }
   }
 }
 
-/** Migration confirmation prompt configuration */
-export interface MigrationPromptConfig {
-  /** Whether to show confirmation prompts */
-  enabled: boolean
-  /** Minimum risk level to prompt for */
-  minimumRiskLevel: 'low' | 'medium' | 'high'
-  /** Whether to show detailed summary */
-  showDetailedSummary: boolean
-  /** Whether to require explicit confirmation for destructive operations */
-  requireExplicitConfirmation: boolean
-  /** Custom prompt messages */
-  customMessages?: {
-    destructiveWarning?: string
-    confirmationPrompt?: string
-    proceedMessage?: string
-    cancelMessage?: string
+export type DriftDiagnostic =
+  /// The current database schema does not match the schema that would be expected from applying the migration history.
+  | { diagnostic: 'driftDetected'; rollback: string }
+  // A migration failed to cleanly apply to a temporary database.
+  | {
+      diagnostic: 'migrationFailedToApply'
+      error: UserFacingError
+    }
+
+export type HistoryDiagnostic =
+  | { diagnostic: 'databaseIsBehind'; unappliedMigrationNames: string[] }
+  | {
+      diagnostic: 'migrationsDirectoryIsBehind'
+      unpersistedMigrationNames: string[]
+    }
+  | {
+      diagnostic: 'historiesDiverge'
+      lastCommonMigrationName: string | null
+      unpersistedMigrationNames: string[]
+      unappliedMigrationNames: string[]
+    }
+
+export interface MigrationFeedback {
+  message: string
+  stepIndex: number
+}
+
+export type DevAction = { tag: 'reset'; reason: string } | { tag: 'createMigration' }
+
+// eslint-disable-next-line @typescript-eslint/no-namespace
+export namespace EngineArgs {
+  /**
+   * These RPCs need a sourceConfig, therefore a db connection to function
+   */
+  export interface ApplyMigrationsInput {
+    migrationsList: MigrateTypes.MigrationList
+    filters: MigrateTypes.SchemaFilter
   }
-}
 
-/** Migration execution progress */
-export interface MigrationProgress {
-  /** Current step being executed */
-  currentStep: number
-  /** Total number of steps */
-  totalSteps: number
-  /** Current operation description */
-  currentOperation: string
-  /** Percentage complete */
-  percentComplete: number
-  /** Time elapsed in milliseconds */
-  timeElapsed: number
-  /** Estimated time remaining in milliseconds */
-  estimatedTimeRemaining?: number
-  /** Statements executed so far */
-  statementsExecuted: number
-  /** Any warnings encountered */
-  warnings: string[]
-}
-
-/** Migration logging configuration */
-export interface MigrationLoggingConfig {
-  /** Log level */
-  level: 'debug' | 'info' | 'warn' | 'error'
-  /** Whether to log SQL statements */
-  logStatements: boolean
-  /** Whether to log execution times */
-  logExecutionTimes: boolean
-  /** Whether to log progress updates */
-  logProgress: boolean
-  /** Custom logger function */
-  customLogger?: (level: string, message: string, metadata?: unknown) => void
-}
-
-/** Migration preview result */
-export interface MigrationPreview {
-  /** Detailed summary */
-  summary: DetailedMigrationSummary
-  /** SQL statements to be executed */
-  statements: string[]
-  /** Human-readable description */
-  description: string
-  /** Risk assessment */
-  riskAssessment: {
-    level: 'low' | 'medium' | 'high'
-    factors: string[]
-    recommendations: string[]
+  export interface CreateMigrationInput {
+    migrationsList: MigrateTypes.MigrationList
+    schema: MigrateTypes.SchemasContainer
+    draft: boolean // if true, always generate a migration, but do not apply
+    /// The user-given name for the migration. This will be used in the migration directory.
+    migrationName: string
+    filters: MigrateTypes.SchemaFilter
   }
-  /** Rollback information */
-  rollbackInfo: {
-    available: boolean
-    statements: string[]
-    warnings: string[]
+
+  // The path to a live database taken as input.
+  // For flexibility,
+  // this can be the path to a Prisma schema file containing the datasource,
+  // or the whole Prisma schema as a string,
+  // or only the connection string.
+  export interface CreateDatabaseInput {
+    datasource: MigrateTypes.DatasourceParam
   }
-}
 
-/**
- * Database introspection result
- */
-export interface DatabaseSchema {
-  /** Database tables */
-  tables: DatabaseTable[]
-  /** Database views */
-  views: DatabaseView[]
-  /** Database indexes */
-  indexes: DatabaseIndex[]
-  /** Database enums */
-  enums: DatabaseEnum[]
-}
+  export interface DropDatabase {
+    schema: string
+  }
 
-/**
- * Database table information
- */
-export interface DatabaseTable {
-  /** Table name */
-  name: string
-  /** Table schema (optional) */
-  schema?: string
-  /** Whether this is a view */
-  isView?: boolean
-  /** Table columns */
-  columns: DatabaseColumn[]
-  /** Primary key columns */
-  primaryKey: string[]
-  /** Foreign key constraints */
-  foreignKeys: DatabaseForeignKey[]
-  /** Unique constraints */
-  uniqueConstraints: DatabaseUniqueConstraint[]
-  /** Table indexes */
-  indexes?: DatabaseIndex[]
-}
+  export type DbExecuteDatasourceType =
+    | MigrateTypes.Tagged<'schema', MigrateTypes.SchemasWithConfigDir>
+    | MigrateTypes.Tagged<'url', MigrateTypes.UrlContainer>
+  export interface DbExecuteInput {
+    // The location of the live database to connect to.
+    datasourceType: DbExecuteDatasourceType
+    // The input script.
+    script: string
+  }
 
-/**
- * Database column information
- */
-export interface DatabaseColumn {
-  /** Column name */
-  name: string
-  /** Column type */
-  type: string
-  /** Whether the column is nullable */
-  nullable: boolean
-  /** Default value */
-  defaultValue?: unknown
-  /** Whether the column is auto-incrementing */
-  autoIncrement?: boolean
-  /** Column comment */
-  comment?: string
-}
+  export interface IntrospectParams {
+    schema: MigrateTypes.SchemasContainer
+    baseDirectoryPath: string
+    viewsDirectoryPath: string
+    force?: boolean
 
-/**
- * Database view information
- */
-export interface DatabaseView {
-  /** View name */
-  name: string
-  /** View definition */
-  definition: string
-}
+    // Note: this must be a non-negative integer
+    compositeTypeDepth?: number
+    namespaces?: string[]
+  }
 
-/**
- * Database index information
- */
-export interface DatabaseIndex {
-  /** Index name */
-  name: string
-  /** Table name */
-  tableName: string
-  /** Indexed columns */
-  columns: string[]
-  /** Whether the index is unique */
-  unique: boolean
-}
+  export interface IntrospectResult {
+    schema: MigrateTypes.SchemasContainer
+    warnings: string | null
 
-/**
- * Database foreign key constraint
- */
-export interface DatabaseForeignKey {
-  /** Constraint name */
-  name: string
-  /** Local columns */
-  columns: string[]
-  /** Referenced table */
-  referencedTable: string
-  /** Referenced columns */
-  referencedColumns: string[]
-  /** On delete action */
-  onDelete?: 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'NO ACTION'
-  /** On update action */
-  onUpdate?: 'CASCADE' | 'SET NULL' | 'RESTRICT' | 'NO ACTION'
-}
+    /**
+     * Views retrieved from the databases.
+     * Supported databases: 'postgresql'.
+     *
+     * This value is:
+     * - `null` if "views" doesn't appear in the schema's preview features
+     * - `[]` if the database doesn't have any views
+     * - a non-empty array in other cases
+     */
+    views: IntrospectionViewDefinition[] | null
+  }
 
-/**
- * Database unique constraint
- */
-export interface DatabaseUniqueConstraint {
-  /** Constraint name */
-  name: string
-  /** Columns in the constraint */
-  columns: string[]
-}
+  export interface DevDiagnosticInput {
+    migrationsList: MigrateTypes.MigrationList
+    filters: MigrateTypes.SchemaFilter
+  }
 
-/**
- * Database enum type
- */
-export interface DatabaseEnum {
-  /** Enum name */
-  name: string
-  /** Enum values */
-  values: string[]
-}
+  export interface DiagnoseMigrationHistoryInput {
+    migrationsList: MigrateTypes.MigrationList
+    /// Whether creating shadow/temporary databases is allowed.
+    optInToShadowDatabase: boolean
+    filters: MigrateTypes.SchemaFilter
+  }
 
-/**
- * Generic Kysely database interface
- */
-export interface CompiledQueryLike {
-  sql: string
-  parameters?: readonly unknown[]
-}
+  export interface EnsureConnectionValidityInput {
+    datasource: MigrateTypes.DatasourceParam
+  }
 
-export type DefaultValue = string | number | boolean | Date | { sql: string } | { toOperationNode?: () => unknown }
+  export interface EvaluateDataLossInput {
+    migrationsList: MigrateTypes.MigrationList
+    schema: MigrateTypes.SchemasContainer
+    filters: MigrateTypes.SchemaFilter
+  }
 
-export interface ColumnBuilderLike {
-  notNull(): ColumnBuilderLike
-  primaryKey(): ColumnBuilderLike
-  defaultTo(value: DefaultValue): ColumnBuilderLike
-  setDataType(type: string): ColumnBuilderLike
-  setNotNull(): ColumnBuilderLike
-  dropNotNull(): ColumnBuilderLike
-}
+  export interface ListMigrationDirectoriesInput {
+    migrationsDirectoryPath: string
+  }
 
-export interface ForeignKeyConstraintBuilderLike {
-  onDelete(action: 'no action' | 'restrict' | 'cascade' | 'set null' | 'set default'): ForeignKeyConstraintBuilderLike
-  onUpdate(action: 'no action' | 'restrict' | 'cascade' | 'set null' | 'set default'): ForeignKeyConstraintBuilderLike
-}
+  export interface MarkMigrationAppliedInput {
+    migrationsList: MigrateTypes.MigrationList
+    migrationName: string
+  }
 
-export interface CreateTableBuilderLike {
-  addColumn(name: string, type: string, callback?: (column: ColumnBuilderLike) => ColumnBuilderLike | void): this
-  addForeignKeyConstraint(
-    name: string,
-    columns: string[],
-    referencedTable: string,
-    referencedColumns: string[],
-    callback?: (constraint: ForeignKeyConstraintBuilderLike) => ForeignKeyConstraintBuilderLike | void,
-  ): this
-  compile(): CompiledQueryLike
-  execute(): Promise<unknown>
-}
+  export interface MarkMigrationRolledBackInput {
+    migrationName: string
+  }
 
-export interface AlterTableBuilderLike {
-  addColumn(name: string, type: string, callback?: (column: ColumnBuilderLike) => ColumnBuilderLike | void): this
-  dropColumn(name: string): this
-  alterColumn(name: string, callback: (column: ColumnBuilderLike) => ColumnBuilderLike | void): this
-  compile(): CompiledQueryLike
-  execute(): Promise<unknown>
-}
+  type MigrateDiffTargetUrl = MigrateTypes.Tagged<'url', MigrateTypes.UrlContainer>
+  type MigrateDiffTargetEmpty = {
+    // An empty schema.
+    tag: 'empty'
+  }
+  type MigrateDiffTargetSchemaDatamodel = MigrateTypes.Tagged<'schemaDatamodel', MigrateTypes.SchemasContainer>
+  type MigrateDiffTargetSchemaDatasource = MigrateTypes.Tagged<'schemaDatasource', MigrateTypes.SchemasWithConfigDir>
 
-export interface IndexColumnBuilderLike {
-  column(name: string): IndexColumnBuilderLike
-  compile(): CompiledQueryLike
-  execute(): Promise<unknown>
-}
+  // The migrations will be applied to a shadow database, and the resulting schema considered for diffing.
+  type MigrateDiffTargetMigrations = MigrateTypes.Tagged<'migrations', MigrateTypes.MigrationList>
 
-export interface CreateIndexBuilderLike {
-  on(tableName: string): IndexColumnBuilderLike
-}
+  export type MigrateDiffTarget =
+    | MigrateDiffTargetUrl
+    | MigrateDiffTargetEmpty
+    | MigrateDiffTargetSchemaDatamodel
+    | MigrateDiffTargetSchemaDatasource
+    | MigrateDiffTargetMigrations
+  export interface MigrateDiffInput {
+    // The source of the schema to consider as a starting point.
+    from: MigrateDiffTarget
+    // The source of the schema to consider as a destination, or the desired end-state.
+    to: MigrateDiffTarget
+    // By default, the response will contain a human-readable diff.
+    // If you want an executable script, pass the "script": true param.
+    script: boolean
+    // The URL to a live database to use as a shadow database. The schema and data on that database will be wiped during diffing.
+    // This is only necessary when one of from or to is referencing a migrations directory as a source for the schema.
+    shadowDatabaseUrl: string | null
+    // Change the exit code behavior when diff is not empty
+    // Empty: 0, Error: 1, Non empty: 2
+    exitCode: boolean | null
+    // The schema filter to apply to the diff.
+    filters: MigrateTypes.SchemaFilter
+  }
 
-export interface DeleteQueryBuilderLike {
-  where(column: string, operator: string, value: string | number | boolean | Date): DeleteQueryBuilderLike
-  execute(): Promise<unknown>
-}
+  export interface SchemaPushInput {
+    schema: MigrateTypes.SchemasContainer
+    force: boolean
+    filters: MigrateTypes.SchemaFilter
+  }
 
-export interface InsertQueryBuilderLike {
-  values(values: Record<string, unknown>): { execute(): Promise<unknown> }
-}
+  export interface IntrospectSqlParams {
+    url: string
+    queries: SqlQueryInput[]
+  }
 
-export interface SelectQueryBuilderLike {
-  selectAll(): SelectQueryBuilderLike
-  orderBy(column: string, direction?: 'asc' | 'desc'): SelectQueryBuilderLike
-  where(column: string, operator: string, value: string | number | boolean | Date): SelectQueryBuilderLike
-  execute(): Promise<unknown[]>
-}
-
-export interface KyselyIntrospectionTable {
-  name: string
-  schema?: string
-  isView?: boolean
-  columns: Array<{
+  export interface SqlQueryInput {
     name: string
-    dataType: string
-    isNullable: boolean
-    hasDefaultValue?: boolean
-    isAutoIncrementing?: boolean
-    comment?: string
-  }>
-}
-
-export interface KyselyIntrospectionLike {
-  getTables(): Promise<KyselyIntrospectionTable[]>
-}
-
-export interface AnyKyselyDatabase {
-  schema: {
-    createTable(tableName: string): CreateTableBuilderLike
-    alterTable(tableName: string): AlterTableBuilderLike
-    dropTable(tableName: string): { compile(): CompiledQueryLike; execute(): Promise<unknown> }
-    createIndex(indexName: string): CreateIndexBuilderLike
-    dropIndex(indexName: string): { compile(): CompiledQueryLike; execute(): Promise<unknown> }
+    source: string
   }
-  introspection: KyselyIntrospectionLike
-  selectFrom(tableName: string): SelectQueryBuilderLike
-  insertInto(tableName: string): InsertQueryBuilderLike
-  deleteFrom(tableName: string): DeleteQueryBuilderLike
-  transaction(): { execute<T>(callback: (trx: AnyKyselyTransaction) => Promise<T>): Promise<T> }
-  executeQuery(query: CompiledQueryLike): Promise<{ rows: unknown[] }>
+
+  export interface MigrateResetInput {
+    filter: MigrateTypes.SchemaFilter
+  }
 }
 
-export interface AnyKyselyTransaction {
-  executeQuery(query: CompiledQueryLike): Promise<{ rows: unknown[] }>
+// eslint-disable-next-line @typescript-eslint/no-namespace
+export namespace EngineResults {
+  export interface ApplyMigrationsOutput {
+    appliedMigrationNames: string[]
+  }
+
+  export interface CreateDatabaseOutput {
+    database_name: string
+  }
+
+  export interface CreateMigrationOutput {
+    /// The active connector type used.
+    connectorType: ActiveConnectorType
+
+    /// The generated name of migration directory, which the caller must use to create the new directory.
+    generatedMigrationName: string
+
+    /// The migration script that was generated, if any.
+    /// It will be null if:
+    /// 1. The migration we generate would be empty, **AND**
+    /// 2. the `draft` param was not true, because in that case the engine would still generate an empty
+    ///     migration script.
+    migrationScript: string | null
+
+    /// The file extension for generated migration files.
+    extension: string
+  }
+
+  export type DbExecuteOutput = null
+
+  export interface DevDiagnosticOutput {
+    action: DevAction
+  }
+
+  export interface DiagnoseMigrationHistoryOutput {
+    /// Null means the database and the migrations directory are in sync and up to date.
+    history: HistoryDiagnostic | null
+    /// The name of the migrations that failed to apply completely to the database.
+    failedMigrationNames: string[]
+    /// The names of the migrations that were modified after they were applied to the database.
+    editedMigrationNames: string[]
+    /// Whether the migrations table is present.
+    hasMigrationsTable: boolean
+  }
+
+  export interface EvaluateDataLossOutput {
+    /// The number of migration steps that would be generated. If this is 0, we wouldn't generate a new migration, unless the `draft` option is passed.
+    migrationSteps: number
+
+    /// The warnings and unexecutable migration messages that apply to the _development database_.
+    /// The warnings for the production databases are written as comments into the migration scripts.
+    warnings: MigrationFeedback[]
+    unexecutableSteps: MigrationFeedback[]
+  }
+
+  export interface ListMigrationDirectoriesOutput {
+    /// The names of the migrations in the migration directory. Empty if no migrations are found.
+    migrations: string[]
+  }
+
+  export enum MigrateDiffExitCode {
+    // 0 = success
+    // if --exit-code is passed
+    // 0 = success with empty diff (no changes)
+    SUCCESS = 0,
+    // 1 = Error
+    ERROR = 1,
+    // 2 = Succeeded with non-empty diff (changes present)
+    SUCCESS_NONEMPTY = 2,
+  }
+  export interface MigrateDiffOutput {
+    exitCode: MigrateDiffExitCode
+  }
+
+  export interface SchemaPush {
+    executedSteps: number
+    warnings: string[]
+    unexecutable: string[]
+  }
+
+  export interface IntrospectSqlOutput {
+    queries: SqlQueryOutput[]
+  }
+}
+
+export interface FileMap {
+  [fileName: string]: string
+}
+
+export interface Dictionary<T> {
+  [key: string]: T
 }
