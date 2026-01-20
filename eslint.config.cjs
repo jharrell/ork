@@ -114,8 +114,6 @@ module.exports = [
         {
           ignoreRestSiblings: true,
           argsIgnorePattern: '^_',
-          destructuredArrayIgnorePattern: '^_',
-          varsIgnorePattern: '^_',
         },
       ],
 
