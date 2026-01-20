@@ -1,142 +1,276 @@
-# Ork
+![Prisma](https://i.imgur.com/h6UIYTu.png)
 
-Ork is a TypeScript-native, Prisma-like ORM built on the Kysely query builder.
+<div align="center">
+  <h1>Prisma</h1>
+  <a href="https://www.npmjs.com/package/prisma"><img src="https://img.shields.io/npm/v/prisma.svg?style=flat" /></a>
+  <a href="https://github.com/prisma/prisma/blob/main/CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" /></a>
+  <a href="https://github.com/prisma/prisma/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202-blue" /></a>
+  <a href="https://pris.ly/discord"><img alt="Discord" src="https://img.shields.io/discord/937751382725886062?label=Discord"></a>
+  <br />
+  <br />
+  <a href="https://www.prisma.io/docs/getting-started/quickstart">Quickstart</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://www.prisma.io/">Website</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://www.prisma.io/docs/">Docs</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://github.com/prisma/prisma-examples/">Examples</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://www.prisma.io/blog">Blog</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://pris.ly/discord?utm_source=github&utm_medium=prisma&utm_content=repo_readme">Discord</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://pris.ly/x?utm_source=github&utm_medium=prisma&utm_content=repo_readme">Twitter</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://pris.ly/youtube?utm_source=github&utm_medium=prisma&utm_content=repo_readme">Youtube</a>
+  <br />
+  <hr />
+</div>
 
-> [!CAUTION]
->
-> **Should I use Ork?**
->
-> No, probably not. Ork:
->
-> 1. Involved a lot of LLM-generated code
-> 2. Is written by a person who has no idea what they're doing
-> 3. Isn't stable or mature
->
-> Despite these concerns, if you're still willing to try out the project, thank you very much! I'll do my best to address feedback and concerns.
+## What is Prisma?
 
-## Vision
+Prisma ORM is a **next-generation ORM** that consists of these tools:
 
-Ork wants to be your ORM du jour. We want to get there by offering the following:
+- [**Prisma Client**](https://www.prisma.io/docs/concepts/components/prisma-client): Auto-generated and type-safe query builder for Node.js & TypeScript
+- [**Prisma Migrate**](https://www.prisma.io/docs/concepts/components/prisma-migrate): Declarative data modeling & migration system
+- [**Prisma Studio**](https://github.com/prisma/studio): GUI to view and edit data in your database
 
-1. A way to define your database schema in a clear and concise way.
-2. A way to generate a full-typed, high-level client SDK so you can work with your data quickly and easily.
-3. A way to seamlessly migrate from one database schema to another.
+Prisma Client can be used in _any_ Node.js or TypeScript backend application (including serverless applications and microservices). This can be a [REST API](https://www.prisma.io/docs/concepts/overview/prisma-in-your-stack/rest), a [GraphQL API](https://www.prisma.io/docs/concepts/overview/prisma-in-your-stack/graphql), a gRPC API, or anything else that needs a database.
 
-How we get there is with the following tools:
+**If you need a database to use with Prisma ORM, check out [Prisma Postgres](https://www.prisma.io/docs/getting-started/quickstart-prismaPostgres?utm_source=github&utm_medium=prisma-readme) or if you are looking for our MCP Server, head [here](https://github.com/prisma/mcp).**
 
-1. A superset of the Prisma schema language that also allows you to define constraints, views, procedures, and more.
-2. A generated client that combines a Prisma-style API with the ability to use Kysely queries directly.
-3. A migration engine that generates reasonable up and down migrations for a given schema change.
-4. The ability to do any or all of the above a la carte via development plugins, typescript functions, and a CLI.
+## Getting started
 
-## Strategic Pillars
+### Quickstart (5min)
 
-While right now Ork is a dinky one-man show, we have a clear vision of a mature, community-managed project. Here are some of the tenets we want to stand by:
+The fastest way to get started with Prisma is by following the quickstart guides. You can choose either of two databases:
 
-- Whenever possible, a project using Prisma could switch to Ork with minimal code churn.
-- Ork is a typescript project, from top to bottom.
-- Ork should get out of your way and integrate with modern tooling and workflows.
-- Ork should consider and prioritize community-driven contributions.
+- [Prisma Postgres](https://www.prisma.io/docs/getting-started/quickstart-prismaPostgres)
+- [SQLite](https://www.prisma.io/docs/getting-started/quickstart-sqlite)
 
-## What You Get
+### Bring your own database
 
-- **Prisma schema compatibility**: Use your existing Prisma schema files without modification
-- **Type-safe client API**: Generated Prisma-like client with CRUD operations that map to Kysely queries
-- **Relation loading**: Support for `include` to fetch related records with proper typing
-- **Relation filtering**: `where` filters across relations (`some`, `every`, `none`, `is`, `isNot`)
-- **Kysely integration**: Direct access via `$kysely` for advanced queries
-- **Programmatic migrations**: `diff()` and `apply()` APIs that work through Kysely
-- **Modern CLI**: `ork init`, `ork generate`, and `ork migrate` commands
-- **Modern build tool integrations**: `unplugin-ork` with hot reloading
-- **Multi-database support**: PostgreSQL, MySQL, and SQLite today, with a clear path to additional dialects
+If you already have your own database, you can follow these guides:
 
-## Project Status
+- [Add Prisma to an existing project](https://www.prisma.io/docs/getting-started/setup-prisma/add-to-existing-project/relational-databases-typescript-postgresql)
+- [Set up a new project with Prisma from scratch](https://www.prisma.io/docs/getting-started/setup-prisma/start-from-scratch/relational-databases-typescript-postgresql)
 
-The project's current focus is an alpha version that includes schema parsing, client generation, migrations, and Kysely-backed execution for PostgreSQL, MySQL, and SQLite queries.
+## How Prisma ORM works
 
-Future effort will be put towards:
+This section provides a high-level overview of how Prisma ORM works and its most important technical components. For a more thorough introduction, visit the [Prisma documentation](https://www.prisma.io/docs/).
 
-1. A beta release
-2. As much parity with Prisma ORM as is possible (incl. DB support, etc)
-3. Feature differentiation (Prisma Schema Language superset)
+### The Prisma schema
 
-## Key Packages
+Every project that uses a tool from the Prisma toolkit starts with a [Prisma schema file](https://www.prisma.io/docs/concepts/components/prisma-schema). The Prisma schema allows developers to define their _application models_ in an intuitive data modeling language. It also contains the connection to a database and defines a _generator_:
 
-- `packages/client`: Client runtime and code generation.
-- `packages/schema-parser`: TypeScript-native parser for `.prisma` schemas.
-- `packages/field-translator`: Database-specific field transformation for code generation.
-- `packages/migrate`: Programmatic migration engine powered by Kysely.
-- `packages/config`: Configuration discovery and dialect wiring.
-- `packages/unplugin`: Build-tool integration (Vite, Webpack, Rollup, esbuild) that emits virtual `.ork/types` modules.
-- `packages/cli`: CLI (`ork`) that orchestrates config, generation, and migrations.
+```prisma
+// Data source
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
 
-Core libraries publish under `@ork-orm/*`, with `ork` (CLI) and `unplugin-ork` as unscoped packages.
+// Generator
+generator client {
+  provider = "prisma-client-js"
+}
 
-## Getting Started (Alpha)
+// Data model
+model Post {
+  id        Int     @id @default(autoincrement())
+  title     String
+  content   String?
+  published Boolean @default(false)
+  author    User?   @relation(fields:  [authorId], references: [id])
+  authorId  Int?
+}
 
-Ork supports two workflows:
-
-1. **unplugin (recommended)**: auto-generates the client and keeps `.ork/types` in sync.
-2. **CLI-only (Prisma-style)**: run `ork dev` for a unified generate+migrate loop, or run commands manually.
-
-### 1) Vite + unplugin (recommended)
-
-```bash
-pnpm add -D ork unplugin-ork
-npx ork init
-export DATABASE_URL="file:./dev.db"
-pnpm dev
+model User {
+  id    Int     @id @default(autoincrement())
+  email String  @unique
+  name  String?
+  posts Post[]
+}
 ```
 
-> [!NOTE] > `ork init` will detect Vite and can auto-patch your `vite.config` to add this plugin. It can also offer to install recommended dependencies.
+In this schema, you configure three things:
 
-Add the plugin in `vite.config.ts`:
+- **Data source**: Specifies your database connection (via an environment variable)
+- **Generator**: Indicates that you want to generate Prisma Client
+- **Data model**: Defines your application models
+
+---
+
+### The Prisma data model
+
+On this page, the focus is on the data model. You can learn more about [Data sources](https://www.prisma.io/docs/reference/tools-and-interfaces/prisma-schema/data-sources) and [Generators](https://www.prisma.io/docs/reference/tools-and-interfaces/prisma-schema/generators) on the respective docs pages.
+
+#### Functions of Prisma models
+
+The data model is a collection of [models](https://www.prisma.io/docs/concepts/components/prisma-schema/data-model#defining-models). A model has two major functions:
+
+- Represent a table in the underlying database
+- Provide the foundation for the queries in the Prisma Client API
+
+#### Getting a data model
+
+There are two major workflows for "getting" a data model into your Prisma schema:
+
+- Generate the data model from [introspecting](https://www.prisma.io/docs/concepts/components/introspection) a database
+- Manually writing the data model and mapping it to the database with [Prisma Migrate](https://www.prisma.io/docs/concepts/components/prisma-migrate)
+
+Once the data model is defined, you can [generate Prisma Client](https://www.prisma.io/docs/concepts/components/prisma-client/generating-prisma-client) which will expose CRUD and more queries for the defined models. If you're using TypeScript, you'll get full type-safety for all queries (even when only retrieving the subsets of a model's fields).
+
+---
+
+### Accessing your database with Prisma Client
+
+#### Generating Prisma Client
+
+The first step when using Prisma Client is installing its npm package:
+
+```
+npm install @prisma/client
+```
+
+Note that the installation of this package invokes the `prisma generate` command which reads your Prisma schema and _generates_ the Prisma Client code. The code will be located in `node_modules/.prisma/client`, which is exported by `node_modules/@prisma/client/index.d.ts`.
+
+After you change your data model, you'll need to manually re-generate Prisma Client to ensure the code inside `node_modules/.prisma/client` gets updated:
+
+```
+npx prisma generate
+```
+
+Refer to the documentation for more information about ["generating the Prisma client"](https://www.prisma.io/docs/concepts/components/prisma-client/generating-prisma-client).
+
+#### Using Prisma Client to send queries to your database
+
+Once the Prisma Client is generated, you can import it in your code and send queries to your database. This is what the setup code looks like.
+
+##### Import and instantiate Prisma Client
+
+You can import and instantiate Prisma Client as follows:
 
 ```ts
-import { defineConfig } from 'vite'
-import ork from 'unplugin-ork/vite'
+import { PrismaClient } from '@prisma/client'
 
-export default defineConfig({
-  plugins: [
-    ork({
-      autoGenerateClient: true,
-      autoMigrate: true,
-    }),
-  ],
+const prisma = new PrismaClient()
+```
+
+or
+
+```js
+const { PrismaClient } = require('@prisma/client')
+
+const prisma = new PrismaClient()
+```
+
+Now you can start sending queries via the generated Prisma Client API, here are a few sample queries. Note that all Prisma Client queries return _plain old JavaScript objects_.
+
+Learn more about the available operations in the [Prisma Client docs](https://www.prisma.io/docs/concepts/components/prisma-client) or watch this [demo video](https://www.youtube.com/watch?v=LggrE5kJ75I&list=PLn2e1F9Rfr6k9PnR_figWOcSHgc_erDr5&index=4) (2 min).
+
+##### Retrieve all `User` records from the database
+
+```ts
+const allUsers = await prisma.user.findMany()
+```
+
+##### Include the `posts` relation on each returned `User` object
+
+```ts
+const allUsers = await prisma.user.findMany({
+  include: { posts: true },
 })
 ```
 
-### 2) CLI-only
+##### Filter all `Post` records that contain `"prisma"`
 
-```bash
-# Initialize config + schema
-npx ork init
-
-# Run the dev loop (generate + migrate on schema changes)
-export DATABASE_URL="postgresql://user:pass@localhost:5432/db"
-npx ork dev
+```ts
+const filteredPosts = await prisma.post.findMany({
+  where: {
+    OR: [{ title: { contains: 'prisma' } }, { content: { contains: 'prisma' } }],
+  },
+})
 ```
 
-## Development Workflow
+##### Create a new `User` and a new `Post` record in the same query
 
-1. Edit or create your `schema.prisma`.
-2. Use `pnpm --filter @ork-orm/schema-parser test` to exercise parsing changes.
-3. Run `pnpm --filter @ork-orm/client build` (or `pnpm watch`) to regenerate the client runtime.
-4. Use the CLI for init/generate/migrate flows.
-5. Launch the demo project (Vite + unplugin) to validate type generation and CRUD operations.
+```ts
+const user = await prisma.user.create({
+  data: {
+    name: 'Alice',
+    email: 'alice@prisma.io',
+    posts: {
+      create: { title: 'Join us for Prisma Day 2021' },
+    },
+  },
+})
+```
+
+##### Update an existing `Post` record
+
+```ts
+const post = await prisma.post.update({
+  where: { id: 42 },
+  data: { published: true },
+})
+```
+
+#### Usage with TypeScript
+
+Note that when using TypeScript, the result of this query will be _statically typed_ so that you can't accidentally access a property that doesn't exist (and any typos are caught at compile-time). Learn more about leveraging Prisma Client's generated types on the [Advanced usage of generated types](https://www.prisma.io/docs/concepts/components/prisma-client/advanced-usage-of-generated-types) page in the docs.
+
+## Community
+
+Prisma has a large and supportive [community](https://www.prisma.io/community) of enthusiastic application developers. You can join us on [Discord](https://pris.ly/discord) and here on [GitHub](https://github.com/prisma/prisma/discussions).
+
+## Badges
+
+[![Made with Prisma](http://made-with.prisma.io/dark.svg)](https://prisma.io) [![Made with Prisma](http://made-with.prisma.io/indigo.svg)](https://prisma.io)
+
+Built something awesome with Prisma? 🌟 Show it off with these [badges](https://github.com/prisma/presskit?tab=readme-ov-file#badges), perfect for your readme or website.
+
+```
+[![Made with Prisma](http://made-with.prisma.io/dark.svg)](https://prisma.io)
+```
+
+```
+[![Made with Prisma](http://made-with.prisma.io/indigo.svg)](https://prisma.io)
+```
+
+## Security
+
+If you have a security issue to report, please contact us at [security@prisma.io](mailto:security@prisma.io?subject=[GitHub]%20Prisma%202%20Security%20Report%20).
+
+## Support
+
+### Ask a question about Prisma
+
+You can ask questions and initiate [discussions](https://github.com/prisma/prisma/discussions/) about Prisma-related topics in the `prisma` repository on GitHub.
+
+👉 [**Ask a question**](https://github.com/prisma/prisma/discussions/new)
+
+### Create a bug report for Prisma
+
+If you see an error message or run into an issue, please make sure to create a bug report! You can find [best practices for creating bug reports](https://www.prisma.io/docs/guides/other/troubleshooting-orm/creating-bug-reports) (like including additional debugging output) in the docs.
+
+👉 [**Create bug report**](https://pris.ly/prisma-prisma-bug-report)
+
+### Submit a feature request
+
+If Prisma currently doesn't have a certain feature, be sure to check out the [roadmap](https://www.prisma.io/docs/more/roadmap) to see if this is already planned for the future.
+
+If the feature on the roadmap is linked to a GitHub issue, please make sure to leave a 👍 reaction on the issue and ideally a comment with your thoughts about the feature!
+
+👉 [**Submit feature request**](https://github.com/prisma/prisma/issues/new?assignees=&labels=&template=feature_request.md&title=)
 
 ## Contributing
 
-Ork is TypeScript-first. Follow our workspace conventions:
+Refer to our [contribution guidelines](https://github.com/prisma/prisma/blob/main/CONTRIBUTING.md) and [Code of Conduct for contributors](https://github.com/prisma/prisma/blob/main/CODE_OF_CONDUCT.md).
 
-- Node.js ≥ 20, pnpm ≥ 10.
-- `pnpm lint`, `pnpm test`, and `pnpm build` at the workspace root before submitting changes.
-- Database-backed tests use Testcontainers (no local `/docker` directory required).
+## Tests Status
 
-## Special Thanks
-
-Thank you to William ([@willguitaradmfar](https://github.com/willguitaradmfar)) for generously donating the `ork` npm package name.
-
-## License
-
-Apache-2.0 © Ork contributors.
+- Prisma Tests Status:
+  [![Prisma Tests Status](https://github.com/prisma/prisma/workflows/CI/badge.svg)](https://github.com/prisma/prisma/actions/workflows/test.yml?query=branch%3Amain)
+- Ecosystem Tests Status:
+  [![Ecosystem Tests Status](https://github.com/prisma/ecosystem-tests/workflows/test/badge.svg)](https://github.com/prisma/ecosystem-tests/actions/workflows/test.yaml?query=branch%3Adev)

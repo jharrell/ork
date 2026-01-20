@@ -1,8 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
+    "module": "commonjs",
     "lib": ["ES2022", "DOM"],
     "esModuleInterop": true,
     "isolatedModules": true,
@@ -29,6 +28,10 @@
     "**/fixtures",
     "**/node_modules",
     "**/.prisma/client",
-    "./packages/cli/preinstall"
+    "./packages/cli/preinstall",
+    "./packages/cli/prisma-client",
+    "./packages/client/runtime",
+    "./packages/client/declaration",
+    "./packages/client/generator-build"
   ]
 }

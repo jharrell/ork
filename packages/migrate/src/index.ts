@@ -1,77 +1,25 @@
-/**
- * @ork-orm/migrate - TypeScript-native migration engine for Ork ORM
- *
- * This package provides programmatic migration capabilities with direct Kysely integration,
- * eliminating custom driver abstractions and providing transparent, type-safe database operations.
- */
-
-import { OrkMigrate } from './OrkMigrate'
-import type { MigrationOptions } from './types'
-
-export { OrkMigrate }
-
-export type {
-  AnyKyselyDatabase,
-  AnyKyselyTransaction,
-  DatabaseColumn,
-  DatabaseForeignKey,
-  DatabaseIndex,
-  DatabaseSchema,
-  DatabaseTable,
-  DatabaseUniqueConstraint,
-  DatabaseView,
-  DetailedMigrationSummary,
-  EnhancedMigrationHistoryEntry,
-  MigrationDiff,
-  MigrationError,
-  MigrationHistoryEntry,
-  MigrationImpact,
-  MigrationLock,
-  MigrationLoggingConfig,
-  MigrationOptions,
-  MigrationPreview,
-  MigrationProgress,
-  MigrationPromptConfig,
-  MigrationResult,
-  MigrationRollback,
-  MigrationState,
-  MigrationSummary,
-  MigrationValidation,
-} from './types.js'
-
-/**
- * Create a new OrkMigrate instance with the provided Kysely database instance
- *
- * @param kyselyInstance - Any Kysely dialect instance (PostgreSQL, MySQL, SQLite, or D1)
- * @param options - Optional configuration for migration behavior
- * @returns OrkMigrate instance ready for diff() and apply() operations
- *
- * @example
- * ```typescript
- * import { createMigrate } from '@ork-orm/migrate'
- * import { Kysely, PostgresDialect } from 'kysely'
- * import { Pool } from 'pg'
- *
- * const db = new Kysely({
- *   dialect: new PostgresDialect({
- *     pool: new Pool({ connectionString: process.env.DATABASE_URL! })
- *   })
- * })
- *
- * const migrate = createMigrate(db, {
- *   useTransaction: true,
- *   validateSchema: true
- * })
- *
- * // Generate migration diff
- * const diff = await migrate.diff('./prisma/schema.prisma')
- * console.log('Migration changes:', diff.summary)
- *
- * // Apply migrations
- * const result = await migrate.apply('./prisma/schema.prisma')
- * console.log('Migration result:', result.success)
- * ```
- */
-export function createMigrate(options?: MigrationOptions): OrkMigrate {
-  return new OrkMigrate(options)
-}
+export { DbCommand } from './commands/DbCommand'
+export { DbDrop } from './commands/DbDrop'
+export { DbExecute } from './commands/DbExecute'
+export { DbPull } from './commands/DbPull'
+export { DbPush } from './commands/DbPush'
+export { DbSeed } from './commands/DbSeed'
+export { MigrateCommand } from './commands/MigrateCommand'
+export { MigrateDeploy } from './commands/MigrateDeploy'
+export { MigrateDev } from './commands/MigrateDev'
+export { MigrateDiff } from './commands/MigrateDiff'
+export { MigrateReset } from './commands/MigrateReset'
+export { MigrateResolve } from './commands/MigrateResolve'
+export { MigrateStatus } from './commands/MigrateStatus'
+export { Migrate } from './Migrate'
+export { SchemaEngineCLI } from './SchemaEngineCLI'
+export { SchemaEngineWasm } from './SchemaEngineWasm'
+export * from './types'
+export { default as byline } from './utils/byline'
+export { getDatabaseVersionSafe } from './utils/getDatabaseVersionSafe'
+export {
+  introspectSql,
+  type IntrospectSqlError,
+  type IntrospectSqlInput,
+  type IntrospectSqlResult,
+} from './utils/introspectSql'

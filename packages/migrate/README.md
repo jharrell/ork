@@ -1,189 +1,49 @@
-# @ork-orm/migrate
+<br />
 
-TypeScript-native migration engine for Ork ORM with direct Kysely integration.
+<div align="center">
+  <h1>Prisma Migrate</h1>
+  <p><h3 align="center">Declarative data modeling & schema migrations</h3></p>
+  <a href="https://www.prisma.io/docs/getting-started/quickstart">Quickstart</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://www.prisma.io/">Website</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://www.prisma.io/docs/">Docs</a>
+    <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://www.prisma.io/docs/concepts/components/prisma-schema/data-model">Data model</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://github.com/prisma/prisma-examples/">Examples</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://www.prisma.io/blog/">Blog</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://pris.ly/discord">Discord</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://twitter.com/prisma">Twitter</a>
+</div>
 
-## Overview
+<hr>
 
-`@ork-orm/migrate` provides programmatic migration capabilities that work directly with Kysely dialect instances, eliminating custom driver abstractions and providing transparent, type-safe database operations.
+**Prisma Migrate** is an imperative database schema migration tool that enables you to make changes to your database schema. Migrations are auto-generated based on the Prisma schema changes but are fully customizable.
 
-## Key Features
+> Please help us improve Prisma Migrate by creating [issues](https://github.com/prisma/prisma/issues/new/choose) and sharing your [feedback](https://pris.ly/discord/) with us.
 
-- **Direct Kysely Integration**: Works with Kysely dialect instances for PostgreSQL, MySQL, SQLite, and D1
-- **TypeScript-Native**: No Rust binaries or external dependencies
-- **Programmatic API**: `await ork.migrate.diff()` and `await ork.migrate.apply()`
-- **Transparent Operations**: Uses Kysely's native introspection and DDL builders
-- **Type Safety**: Full TypeScript support with proper type inference
-- **Comprehensive Schema Diffing**: 
-  - **Foreign Key Constraints**: Full support for FK creation, modification, and deletion with cascade rules
-  - **Index Management**: Unique indexes, multi-column indexes, and custom named indexes
-  - **Default Values**: Column default value creation, modification, and removal
-  - **Enum Types**: Database enum type creation, value addition, and type management
-- **Risk Assessment**: Automatic detection of destructive changes with detailed warnings
-- **Golden Snapshot Testing**: Deterministic SQL generation with comprehensive test coverage
+---
 
-## Installation
+⚠️ **Warning**: This package is intended for Prisma's internal use.
+Its release cycle does not follow SemVer, which means we might release breaking changes (change APIs, remove functionality) without any prior warning.
 
-```bash
-npm install @ork-orm/migrate kysely
-# or
-pnpm add @ork-orm/migrate kysely
-```
+If you are using this package, it would be helpful if you could help us gain an understanding where, how and why you are using it. Your feedback will be valuable to us to define a better API. Please share this information at https://github.com/prisma/prisma/discussions/13877 - Thanks!
 
-## Usage
+## Documentation
 
-### Basic Setup
+You can find more info about Prisma Migrate in the [Prisma documentation](https://www.prisma.io/docs/concepts/components/prisma-migrate). Here are the most relevant pages from the docs:
 
-```typescript
-import { createMigrate } from '@ork-orm/migrate'
-import { Kysely, PostgresDialect } from 'kysely'
-import { Pool } from 'pg'
+- [Prisma Migrate](https://www.prisma.io/docs/concepts/components/prisma-migrate)
+- [Add Prisma Migrate to an existing project](https://www.prisma.io/docs/guides/prisma-guides/prisma-migrate-guides/add-prisma-migrate-to-a-project)
+- [Set up a new project from scratch with Prisma Migrate](https://www.prisma.io/docs/getting-started/setup-prisma/start-from-scratch/relational-databases-typescript-postgresql) (15 min)
+- [Prisma schema](https://www.prisma.io/docs/concepts/components/prisma-schema)
+- [Data model](https://www.prisma.io/docs/concepts/components/prisma-schema/data-model)
+- [Relations](https://www.prisma.io/docs/concepts/components/prisma-schema/relations)
 
-// Create your Kysely instance
-const db = new Kysely({
-  dialect: new PostgresDialect({
-    pool: new Pool({ connectionString: process.env.DATABASE_URL! }),
-  }),
-})
+## Contributing
 
-// Create migration engine
-const migrate = createMigrate(db, {
-  useTransaction: true,
-  validateSchema: true,
-})
-```
-
-### Generate Migration Diff
-
-```typescript
-// Generate diff without applying changes
-const diff = await migrate.diff('./prisma/schema.prisma')
-
-console.log('Migration Summary:')
-console.log('- Tables to create:', diff.summary.tablesCreated)
-console.log('- Tables to modify:', diff.summary.tablesModified)
-console.log('- Columns to add:', diff.summary.columnsAdded)
-console.log('- Risk level:', diff.impact.riskLevel)
-
-if (diff.hasDestructiveChanges) {
-  console.warn('⚠️  This migration contains potentially destructive changes')
-}
-```
-
-### Apply Migrations
-
-```typescript
-// Apply migrations to database
-const result = await migrate.apply('./prisma/schema.prisma')
-
-if (result.success) {
-  console.log(`✅ Migration completed successfully`)
-  console.log(`   Statements executed: ${result.statementsExecuted}`)
-  console.log(`   Execution time: ${result.executionTime}ms`)
-} else {
-  console.error('❌ Migration failed:')
-  result.errors.forEach((error) => {
-    console.error(`   ${error.message}`)
-    if (error.statement) {
-      console.error(`   SQL: ${error.statement}`)
-    }
-  })
-}
-```
-
-### Migration History
-
-```typescript
-// Get migration history
-const history = await migrate.getHistory()
-
-history.forEach((entry) => {
-  console.log(`${entry.id}: ${entry.name}`)
-  console.log(`  Applied: ${entry.appliedAt}`)
-  console.log(`  Duration: ${entry.executionTime}ms`)
-  console.log(`  Success: ${entry.success}`)
-})
-```
-
-### Schema Validation
-
-```typescript
-// Validate current database against schema
-const isValid = await migrate.validate('./prisma/schema.prisma')
-
-if (isValid) {
-  console.log('✅ Database schema is up to date')
-} else {
-  console.log('⚠️  Database schema is out of sync')
-}
-```
-
-## Supported Kysely Dialects
-
-Works with any Kysely dialect:
-
-- **PostgreSQL**: `kysely` with `PostgresDialect`
-- **MySQL**: `kysely` with `MysqlDialect`
-- **SQLite**: `kysely` with `SqliteDialect`
-- **Cloudflare D1**: `kysely-d1`
-- **Note**: Ork targets these providers today; other Kysely dialects may work but are not officially supported yet.
-
-## Configuration Options
-
-```typescript
-interface MigrationOptions {
-  /** Whether to run migrations in a transaction (default: true) */
-  useTransaction?: boolean
-  /** Timeout for migration operations in milliseconds (default: 30000) */
-  timeout?: number
-  /** Whether to validate schema before applying migrations (default: true) */
-  validateSchema?: boolean
-  /** Custom migration table name (default: '_ork_migrations') */
-  migrationTableName?: string
-}
-```
-
-## Architecture
-
-### Direct Kysely Integration
-
-Unlike traditional ORMs that use custom driver abstractions, `@ork-orm/migrate` works directly with your Kysely instance:
-
-1. **Introspection**: Uses `kysely.introspection.getTables()` to get current database state
-2. **DDL Generation**: Uses `kysely.schema.createTable()`, `kysely.schema.alterTable()` for SQL generation
-3. **Execution**: Executes through the same Kysely instance with proper transaction handling
-
-### No Translation Layers
-
-- No DMMF compatibility layers
-- No custom driver abstractions
-- No format conversion between systems
-- Direct use of Kysely's native types and APIs
-
-### Type Safety
-
-Full TypeScript support with:
-
-- Proper type inference for all operations
-- Type-safe configuration options
-- Strongly typed return values
-- Integration with Kysely's type system
-
-## Development
-
-```bash
-# Install dependencies
-pnpm install
-
-# Build package
-pnpm build
-
-# Run tests
-pnpm test
-
-# Development mode
-pnpm dev
-```
-
-## License
-
-Apache-2.0
+Refer to our [contribution guidelines](https://github.com/prisma/prisma/blob/main/CONTRIBUTING.md) and [Code of Conduct for contributors](https://github.com/prisma/prisma/blob/main/CODE_OF_CONDUCT.md).
