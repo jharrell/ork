@@ -20,6 +20,7 @@ import {
   Colon,
   Comma,
   DataSource,
+  Dot,
   Enum,
   Equals,
   Generator,
@@ -277,11 +278,15 @@ export class Parser extends CstParser {
     })
   })
 
-  // Field attribute (@id, @unique, etc.)
+  // Field attribute (@id, @unique, @db.VarChar, etc.)
   fieldAttribute = this.RULE('fieldAttribute', () => {
     this.CONSUME(At)
     this.CONSUME(Identifier, { LABEL: 'name' })
-    this.OPTION(() => {
+    this.OPTION1(() => {
+      this.CONSUME(Dot)
+      this.CONSUME2(Identifier, { LABEL: 'nativeTypeName' })
+    })
+    this.OPTION2(() => {
       this.SUBRULE(this.attributeArguments)
     })
   })
@@ -290,7 +295,11 @@ export class Parser extends CstParser {
   modelAttribute = this.RULE('modelAttribute', () => {
     this.CONSUME(AtAt)
     this.CONSUME(Identifier, { LABEL: 'name' })
-    this.OPTION(() => {
+    this.OPTION1(() => {
+      this.CONSUME(Dot)
+      this.CONSUME2(Identifier, { LABEL: 'nativeTypeName' })
+    })
+    this.OPTION2(() => {
       this.SUBRULE(this.attributeArguments)
     })
   })
@@ -618,7 +627,9 @@ export class SchemaVisitor implements ICstVisitor<unknown, unknown> {
 
   private buildAttribute(node: CstNode): AttributeAST {
     const children = node.children
-    const name = getTokenImage(children, 'name')
+    const baseName = getTokenImage(children, 'name')
+    const nativeTypeName = getTokenImage(children, 'nativeTypeName')
+    const name = nativeTypeName ? `${baseName}.${nativeTypeName}` : baseName
     const argsNode = getNodes(children, 'attributeArguments')[0]
     const args = argsNode ? this.attributeArguments(argsNode) : []
 
