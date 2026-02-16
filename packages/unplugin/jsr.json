@@ -1,0 +1,11 @@
+{
+  "name": "@ork-orm/unplugin",
+  "version": "0.0.1-alpha.1",
+  "exports": {
+    ".": "./src/index.ts",
+    "./vite": "./src/vite.ts",
+    "./webpack": "./src/webpack.ts",
+    "./rollup": "./src/rollup.ts",
+    "./esbuild": "./src/esbuild.ts"
+  }
+}
