@@ -757,6 +757,82 @@ describe('Schema Parser Integration Tests', () => {
     })
   })
 
+  describe('Native Type Attributes (@db.*)', () => {
+    test('should parse @db.VarChar native type attributes', () => {
+      const schema = `
+        model User {
+          id    String @id @db.VarChar(128)
+          email String @db.VarChar(255)
+        }
+      `
+
+      const result = parseSchema(schema)
+
+      expect(result.errors).toHaveLength(0)
+      expect(result.ast.models).toHaveLength(1)
+
+      const user = result.ast.models[0]
+      expect(user.fields).toHaveLength(2)
+
+      const idField = user.fields[0]
+      const dbAttr = idField.attributes.find((a) => a.name === 'db.VarChar')
+      expect(dbAttr).toBeTruthy()
+      expect(dbAttr!.args).toHaveLength(1)
+      expect(dbAttr!.args[0].value).toBe(128)
+
+      const emailField = user.fields[1]
+      const emailDbAttr = emailField.attributes.find((a) => a.name === 'db.VarChar')
+      expect(emailDbAttr).toBeTruthy()
+      expect(emailDbAttr!.args[0].value).toBe(255)
+    })
+
+    test('should parse @db.* attributes without arguments', () => {
+      const schema = `
+        model Post {
+          id      String   @id
+          content String   @db.Text
+          created DateTime @db.Timestamptz
+        }
+      `
+
+      const result = parseSchema(schema)
+
+      expect(result.errors).toHaveLength(0)
+
+      const post = result.ast.models[0]
+      const contentField = post.fields.find((f) => f.name === 'content')!
+      expect(contentField.attributes.find((a) => a.name === 'db.Text')).toBeTruthy()
+
+      const createdField = post.fields.find((f) => f.name === 'created')!
+      expect(createdField.attributes.find((a) => a.name === 'db.Timestamptz')).toBeTruthy()
+    })
+
+    test('should parse @db.* alongside other attributes', () => {
+      const schema = `
+        model Product {
+          id    String  @id @default(cuid())
+          name  String  @db.VarChar(100) @unique
+          price Decimal @db.Decimal(10, 2)
+        }
+      `
+
+      const result = parseSchema(schema)
+
+      expect(result.errors).toHaveLength(0)
+
+      const product = result.ast.models[0]
+      const nameField = product.fields.find((f) => f.name === 'name')!
+      expect(nameField.attributes.map((a) => a.name)).toContain('db.VarChar')
+      expect(nameField.attributes.map((a) => a.name)).toContain('unique')
+
+      const priceField = product.fields.find((f) => f.name === 'price')!
+      const decimalAttr = priceField.attributes.find((a) => a.name === 'db.Decimal')!
+      expect(decimalAttr.args).toHaveLength(2)
+      expect(decimalAttr.args[0].value).toBe(10)
+      expect(decimalAttr.args[1].value).toBe(2)
+    })
+  })
+
   describe('Performance and Edge Cases', () => {
     test('should handle large schemas efficiently', () => {
       // Generate a schema with many models to test performance
