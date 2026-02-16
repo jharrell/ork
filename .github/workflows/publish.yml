@@ -1,0 +1,60 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish-jsr:
+    name: Publish to JSR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Publish all packages to JSR
+        run: pnpm -r exec npx jsr publish
+
+  publish-npm:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Update npm to latest
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Publish all packages to npm
+        run: pnpm -r publish --access public --no-git-checks
+        env:
+          NPM_CONFIG_PROVENANCE: 'true'
