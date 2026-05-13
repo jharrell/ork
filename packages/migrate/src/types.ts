@@ -10,6 +10,8 @@ export interface MigrationOptions {
   validateSchema?: boolean
   /** Custom migration table name (default: '_ork_migrations') */
   migrationTableName?: string
+  /** Logging configuration for migration operations */
+  logging?: MigrationLoggingConfig
 }
 
 /**

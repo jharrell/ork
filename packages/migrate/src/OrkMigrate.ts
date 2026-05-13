@@ -47,7 +47,6 @@ const INTERNAL_MIGRATION_TABLES = new Set(['_ork_migrations', '_ork_migration_lo
  */
 export class OrkMigrate {
   // TODO: Split this class into focused modules (diffing, execution, history/locks, preview/logging).
-  // TODO: Route all warnings through the logging helper or injected logger instead of console.warn.
   private readonly options: Required<MigrationOptions>
 
   constructor(options: MigrationOptions = {}) {
@@ -56,6 +55,12 @@ export class OrkMigrate {
       timeout: 30000,
       validateSchema: true,
       migrationTableName: '_ork_migrations',
+      logging: {
+        level: 'info',
+        logStatements: false,
+        logExecutionTimes: false,
+        logProgress: false,
+      },
       ...options,
     }
   }
@@ -315,7 +320,11 @@ export class OrkMigrate {
       const locks = await query.execute()
       return locks.length > 0
     } catch (error) {
-      console.warn(`Failed to check migration lock: ${error instanceof Error ? error.message : String(error)}`)
+      this.log(
+        this.options.logging,
+        'warn',
+        `Failed to check migration lock: ${error instanceof Error ? error.message : String(error)}`,
+      )
       return false
     }
   }
@@ -884,7 +893,7 @@ export class OrkMigrate {
         indexes: [], // TODO: Implement proper index introspection when Kysely supports it
       }
     } catch (error) {
-      console.warn(`Could not retrieve constraint info for ${tableName}: ${error}`)
+      this.log(this.options.logging, 'warn', `Could not retrieve constraint info for ${tableName}: ${error}`)
       return {
         primaryKey: [],
         foreignKeys: [],
@@ -1550,7 +1559,7 @@ export class OrkMigrate {
     }
 
     // Fallback: convert to string and log warning
-    console.warn(`Unexpected default value type for SQL: ${typeof value}, value:`, value)
+    this.log(this.options.logging, 'warn', `Unexpected default value type for SQL: ${typeof value}`, { value })
     return String(value)
   }
 
@@ -1571,7 +1580,7 @@ export class OrkMigrate {
     if (provider === 'sqlite') return 'sqlite'
 
     // Default to postgresql for unknown providers
-    console.warn(`Unknown provider '${provider}', defaulting to postgresql`)
+    this.log(this.options.logging, 'warn', `Unknown provider '${provider}', defaulting to postgresql`)
     return 'postgresql'
   }
 
@@ -1827,7 +1836,12 @@ export class OrkMigrate {
       }
     } catch (error) {
       // Fall back to basic type mapping if field-translator fails
-      console.warn(`Failed to use field-translator for ${field.name}, falling back to basic type mapping:`, error)
+      this.log(
+        this.options.logging,
+        'warn',
+        `Failed to use field-translator for ${field.name}, falling back to basic type mapping`,
+        { error },
+      )
     }
 
     // Fallback type mapping (should rarely be used)
@@ -2198,7 +2212,11 @@ export class OrkMigrate {
       try {
         rollbackInfo = this.generateRollbackForStatements(kyselyInstance, diff.statements)
       } catch (error) {
-        console.warn(`Failed to generate rollback info: ${error instanceof Error ? error.message : String(error)}`)
+        this.log(
+          this.options.logging,
+          'warn',
+          `Failed to generate rollback info: ${error instanceof Error ? error.message : String(error)}`,
+        )
       }
 
       await kyselyInstance
@@ -2220,7 +2238,11 @@ export class OrkMigrate {
         })
         .execute()
     } catch (error) {
-      console.warn(`Failed to record migration: ${error instanceof Error ? error.message : String(error)}`)
+      this.log(
+        this.options.logging,
+        'warn',
+        `Failed to record migration: ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
   }
 
@@ -2268,7 +2290,11 @@ export class OrkMigrate {
       const now = new Date().toISOString()
       await kyselyInstance.deleteFrom('_ork_migration_locks').where('expiresAt', '<', now).execute()
     } catch (error) {
-      console.warn(`Failed to cleanup expired locks: ${error instanceof Error ? error.message : String(error)}`)
+      this.log(
+        this.options.logging,
+        'warn',
+        `Failed to cleanup expired locks: ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
   }
 
@@ -2326,7 +2352,7 @@ export class OrkMigrate {
 
       return null
     } catch (error) {
-      console.warn(`Failed to generate reverse statement for: ${statement}`)
+      this.log(this.options.logging, 'warn', `Failed to generate reverse statement for: ${statement}`)
       return null
     }
   }
@@ -2362,7 +2388,11 @@ export class OrkMigrate {
         })
         .execute()
     } catch (error) {
-      console.warn(`Failed to record rollback: ${error instanceof Error ? error.message : String(error)}`)
+      this.log(
+        this.options.logging,
+        'warn',
+        `Failed to record rollback: ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
   }
 
@@ -2373,7 +2403,11 @@ export class OrkMigrate {
     try {
       await kyselyInstance.deleteFrom(this.options.migrationTableName).where('id', '=', migrationId).execute()
     } catch (error) {
-      console.warn(`Failed to remove migration from history: ${error instanceof Error ? error.message : String(error)}`)
+      this.log(
+        this.options.logging,
+        'warn',
+        `Failed to remove migration from history: ${error instanceof Error ? error.message : String(error)}`,
+      )
     }
   }
 
@@ -2412,14 +2446,18 @@ export class OrkMigrate {
 
             await alterBuilder.execute()
           } catch (error) {
-            console.warn(
+            this.log(
+              this.options.logging,
+              'warn',
               `Failed to add column ${column.name}: ${error instanceof Error ? error.message : String(error)}`,
             )
           }
         }
       }
     } catch (error) {
-      console.warn(
+      this.log(
+        this.options.logging,
+        'warn',
         `Failed to upgrade migration table schema: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
@@ -3089,7 +3127,9 @@ export class OrkMigrate {
 
       return result
     } catch (error) {
-      console.warn(
+      this.log(
+        this.options.logging,
+        'warn',
         `Failed to compare foreign keys for table ${currentTable.name}: ${
           error instanceof Error ? error.message : String(error)
         }`,
@@ -3175,7 +3215,9 @@ export class OrkMigrate {
 
       return foreignKeys
     } catch (error) {
-      console.warn(
+      this.log(
+        this.options.logging,
+        'warn',
         `Failed to extract foreign keys from model ${model.name}: ${
           error instanceof Error ? error.message : String(error)
         }`,
@@ -3336,7 +3378,9 @@ export class OrkMigrate {
 
       return result
     } catch (error) {
-      console.warn(
+      this.log(
+        this.options.logging,
+        'warn',
         `Failed to compare indexes for table ${currentTable.name}: ${
           error instanceof Error ? error.message : String(error)
         }`,
@@ -3452,7 +3496,9 @@ export class OrkMigrate {
 
       return indexes
     } catch (error) {
-      console.warn(
+      this.log(
+        this.options.logging,
+        'warn',
         `Failed to extract indexes from model ${model.name}: ${error instanceof Error ? error.message : String(error)}`,
       )
       return []
@@ -3638,7 +3684,11 @@ export class OrkMigrate {
 
       return result
     } catch (error) {
-      console.warn(`Failed to compare enums: ${error instanceof Error ? error.message : String(error)}`)
+      this.log(
+        this.options.logging,
+        'warn',
+        `Failed to compare enums: ${error instanceof Error ? error.message : String(error)}`,
+      )
       return result
     }
   }
@@ -3708,7 +3758,9 @@ export class OrkMigrate {
       // creating a new enum, updating all columns, then dropping the old enum
       const valuesToRemove = currentEnum.values.filter((value) => !targetValuesSet.has(value))
       if (valuesToRemove.length > 0) {
-        console.warn(
+        this.log(
+          this.options.logging,
+          'warn',
           `Cannot safely remove enum values [${valuesToRemove.join(', ')}] from enum '${currentEnum.name}'. ` +
             `This would require recreating the enum which may cause data loss.`,
         )
