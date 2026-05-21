@@ -25,6 +25,7 @@ import type {
   MigrationLock,
   MigrationLoggingConfig,
   MigrationLogLevel,
+  MigrationLogMetadata,
   MigrationOptions,
   MigrationPreview,
   MigrationProgress,
@@ -51,11 +52,11 @@ const LOG_LEVEL_SEVERITY: Record<MigrationLogLevel, number> = {
   error: 40,
 }
 
-const CONSOLE_BY_LEVEL: Record<MigrationLogLevel, (...args: unknown[]) => void> = {
-  error: console.error,
-  warn: console.warn,
-  info: console.info,
-  debug: console.debug,
+const CONSOLE_BY_LEVEL: Record<MigrationLogLevel, (message: string, metadata?: MigrationLogMetadata) => void> = {
+  error: (msg, meta) => (meta !== undefined ? console.error(msg, meta) : console.error(msg)),
+  warn: (msg, meta) => (meta !== undefined ? console.warn(msg, meta) : console.warn(msg)),
+  info: (msg, meta) => (meta !== undefined ? console.info(msg, meta) : console.info(msg)),
+  debug: (msg, meta) => (meta !== undefined ? console.debug(msg, meta) : console.debug(msg)),
 }
 
 /**
@@ -65,15 +66,13 @@ const CONSOLE_BY_LEVEL: Record<MigrationLogLevel, (...args: unknown[]) => void> 
 const defaultLogger = (
   level: MigrationLogLevel,
   message: string,
-  metadata: unknown,
+  metadata: MigrationLogMetadata | undefined,
   threshold: MigrationLogLevel,
 ): void => {
   if (LOG_LEVEL_SEVERITY[level] < LOG_LEVEL_SEVERITY[threshold]) return
   const timestamp = new Date().toISOString()
   const formattedMessage = `[${timestamp}] [${level.toUpperCase()}] ${message}`
-  const fn = CONSOLE_BY_LEVEL[level]
-  if (metadata !== undefined) fn(formattedMessage, metadata)
-  else fn(formattedMessage)
+  CONSOLE_BY_LEVEL[level](formattedMessage, metadata)
 }
 
 const DEFAULT_LOGGING_CONFIG: ResolvedMigrationLoggingConfig = {
@@ -364,8 +363,7 @@ export class OrkMigrate {
       const locks = await query.execute()
       return locks.length > 0
     } catch (error) {
-      this.warn(`Failed to check migration lock: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      this.warn(`Failed to check migration lock: ${error instanceof Error ? error.message : String(error)}`)
       return false
     }
   }
@@ -1871,9 +1869,7 @@ export class OrkMigrate {
       }
     } catch (error) {
       // Fall back to basic type mapping if field-translator fails
-      this.warn(`Failed to use field-translator for ${field.name}, falling back to basic type mapping`,
-        { error },
-      )
+      this.warn(`Failed to use field-translator for ${field.name}, falling back to basic type mapping`, { error })
     }
 
     // Fallback type mapping (should rarely be used)
@@ -2244,8 +2240,7 @@ export class OrkMigrate {
       try {
         rollbackInfo = this.generateRollbackForStatements(kyselyInstance, diff.statements)
       } catch (error) {
-        this.warn(`Failed to generate rollback info: ${error instanceof Error ? error.message : String(error)}`,
-        )
+        this.warn(`Failed to generate rollback info: ${error instanceof Error ? error.message : String(error)}`)
       }
 
       await kyselyInstance
@@ -2267,8 +2262,7 @@ export class OrkMigrate {
         })
         .execute()
     } catch (error) {
-      this.warn(`Failed to record migration: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      this.warn(`Failed to record migration: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -2316,8 +2310,7 @@ export class OrkMigrate {
       const now = new Date().toISOString()
       await kyselyInstance.deleteFrom('_ork_migration_locks').where('expiresAt', '<', now).execute()
     } catch (error) {
-      this.warn(`Failed to cleanup expired locks: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      this.warn(`Failed to cleanup expired locks: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -2411,8 +2404,7 @@ export class OrkMigrate {
         })
         .execute()
     } catch (error) {
-      this.warn(`Failed to record rollback: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      this.warn(`Failed to record rollback: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -2423,8 +2415,7 @@ export class OrkMigrate {
     try {
       await kyselyInstance.deleteFrom(this.options.migrationTableName).where('id', '=', migrationId).execute()
     } catch (error) {
-      this.warn(`Failed to remove migration from history: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      this.warn(`Failed to remove migration from history: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -2463,14 +2454,12 @@ export class OrkMigrate {
 
             await alterBuilder.execute()
           } catch (error) {
-            this.warn(`Failed to add column ${column.name}: ${error instanceof Error ? error.message : String(error)}`,
-            )
+            this.warn(`Failed to add column ${column.name}: ${error instanceof Error ? error.message : String(error)}`)
           }
         }
       }
     } catch (error) {
-      this.warn(`Failed to upgrade migration table schema: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      this.warn(`Failed to upgrade migration table schema: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -2982,7 +2971,7 @@ export class OrkMigrate {
    * Emit a log message. Custom loggers receive every call and are responsible
    * for their own filtering; the default console logger honors `level`.
    */
-  private log(level: MigrationLogLevel, message: string, metadata?: unknown): void {
+  private log(level: MigrationLogLevel, message: string, metadata?: MigrationLogMetadata): void {
     const { customLogger, level: threshold } = this.options.logging
     if (customLogger) {
       customLogger(level, message, metadata)
@@ -2991,7 +2980,7 @@ export class OrkMigrate {
     defaultLogger(level, message, metadata, threshold)
   }
 
-  private warn(message: string, metadata?: unknown): void {
+  private warn(message: string, metadata?: MigrationLogMetadata): void {
     this.log('warn', message, metadata)
   }
 
@@ -3128,7 +3117,8 @@ export class OrkMigrate {
 
       return result
     } catch (error) {
-      this.warn(`Failed to compare foreign keys for table ${currentTable.name}: ${
+      this.warn(
+        `Failed to compare foreign keys for table ${currentTable.name}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       )
@@ -3213,7 +3203,8 @@ export class OrkMigrate {
 
       return foreignKeys
     } catch (error) {
-      this.warn(`Failed to extract foreign keys from model ${model.name}: ${
+      this.warn(
+        `Failed to extract foreign keys from model ${model.name}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       )
@@ -3373,7 +3364,8 @@ export class OrkMigrate {
 
       return result
     } catch (error) {
-      this.warn(`Failed to compare indexes for table ${currentTable.name}: ${
+      this.warn(
+        `Failed to compare indexes for table ${currentTable.name}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       )
@@ -3488,7 +3480,8 @@ export class OrkMigrate {
 
       return indexes
     } catch (error) {
-      this.warn(`Failed to extract indexes from model ${model.name}: ${error instanceof Error ? error.message : String(error)}`,
+      this.warn(
+        `Failed to extract indexes from model ${model.name}: ${error instanceof Error ? error.message : String(error)}`,
       )
       return []
     }
@@ -3673,8 +3666,7 @@ export class OrkMigrate {
 
       return result
     } catch (error) {
-      this.warn(`Failed to compare enums: ${error instanceof Error ? error.message : String(error)}`,
-      )
+      this.warn(`Failed to compare enums: ${error instanceof Error ? error.message : String(error)}`)
       return result
     }
   }
@@ -3744,7 +3736,8 @@ export class OrkMigrate {
       // creating a new enum, updating all columns, then dropping the old enum
       const valuesToRemove = currentEnum.values.filter((value) => !targetValuesSet.has(value))
       if (valuesToRemove.length > 0) {
-        this.warn(`Cannot safely remove enum values [${valuesToRemove.join(', ')}] from enum '${currentEnum.name}'. ` +
+        this.warn(
+          `Cannot safely remove enum values [${valuesToRemove.join(', ')}] from enum '${currentEnum.name}'. ` +
             `This would require recreating the enum which may cause data loss.`,
         )
       }

@@ -265,23 +265,34 @@ export interface MigrationProgress {
 /** Migration log level, ordered from most to least verbose */
 export type MigrationLogLevel = 'debug' | 'info' | 'warn' | 'error'
 
+/** Structured metadata attached to a log message */
+export type MigrationLogMetadata = Record<string, unknown>
+
+/** Custom logger sink. Receives every message — threshold filtering is the logger's responsibility. */
+export type MigrationCustomLogger = (level: MigrationLogLevel, message: string, metadata?: MigrationLogMetadata) => void
+
 /** Migration logging configuration */
 export interface MigrationLoggingConfig {
-  /** Minimum log level to emit (default: 'info') */
+  /** Minimum log level the default console logger will emit (default: 'info'). Ignored when customLogger is set. */
   level?: MigrationLogLevel
-  /** Whether to log SQL statements */
+  /** Whether to log SQL statements in the migration preview */
   logStatements?: boolean
-  /** Whether to log execution times */
+  /** Whether to log per-statement execution times */
   logExecutionTimes?: boolean
-  /** Whether to log progress updates */
+  /** Whether to log progress updates during apply */
   logProgress?: boolean
   /** Custom logger function */
-  customLogger?: (level: MigrationLogLevel, message: string, metadata?: unknown) => void
+  customLogger?: MigrationCustomLogger
 }
 
-/** Internal fully-resolved logging configuration */
-export type ResolvedMigrationLoggingConfig = Required<Omit<MigrationLoggingConfig, 'customLogger'>> &
-  Pick<MigrationLoggingConfig, 'customLogger'>
+/** Internal fully-resolved logging configuration: every field except customLogger is required. */
+export interface ResolvedMigrationLoggingConfig {
+  level: MigrationLogLevel
+  logStatements: boolean
+  logExecutionTimes: boolean
+  logProgress: boolean
+  customLogger?: MigrationCustomLogger
+}
 
 /** Migration preview result */
 export interface MigrationPreview {
