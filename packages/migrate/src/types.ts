@@ -262,19 +262,26 @@ export interface MigrationProgress {
   warnings: string[]
 }
 
+/** Migration log level, ordered from most to least verbose */
+export type MigrationLogLevel = 'debug' | 'info' | 'warn' | 'error'
+
 /** Migration logging configuration */
 export interface MigrationLoggingConfig {
-  /** Log level */
-  level: 'debug' | 'info' | 'warn' | 'error'
+  /** Minimum log level to emit (default: 'info') */
+  level?: MigrationLogLevel
   /** Whether to log SQL statements */
-  logStatements: boolean
+  logStatements?: boolean
   /** Whether to log execution times */
-  logExecutionTimes: boolean
+  logExecutionTimes?: boolean
   /** Whether to log progress updates */
-  logProgress: boolean
+  logProgress?: boolean
   /** Custom logger function */
-  customLogger?: (level: string, message: string, metadata?: unknown) => void
+  customLogger?: (level: MigrationLogLevel, message: string, metadata?: unknown) => void
 }
+
+/** Internal fully-resolved logging configuration */
+export type ResolvedMigrationLoggingConfig = Required<Omit<MigrationLoggingConfig, 'customLogger'>> &
+  Pick<MigrationLoggingConfig, 'customLogger'>
 
 /** Migration preview result */
 export interface MigrationPreview {

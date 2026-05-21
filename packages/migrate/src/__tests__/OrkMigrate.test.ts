@@ -58,6 +58,40 @@ describe('OrkMigrate', () => {
       const customMigrate = new OrkMigrate(customOptions)
       expect(customMigrate).toBeInstanceOf(OrkMigrate)
     })
+
+    it('should accept a partial logging override without losing defaults', () => {
+      // Should not type-error or throw when only one logging field is provided
+      const customMigrate = new OrkMigrate({ logging: { level: 'debug' } })
+      expect(customMigrate).toBeInstanceOf(OrkMigrate)
+    })
+  })
+
+  describe('logging', () => {
+    it('should route warnings through customLogger', async () => {
+      const customLogger = vi.fn()
+      const loggingMigrate = new OrkMigrate({ logging: { customLogger } })
+      const errorMock = KyselyMockFactory.createDatabaseErrorSpyMock(new Error('lock check failed'))
+
+      const isLocked = await loggingMigrate.isMigrationLocked(errorMock)
+
+      expect(isLocked).toBe(false)
+      expect(customLogger).toHaveBeenCalled()
+      const [level, message] = customLogger.mock.calls[0]
+      expect(level).toBe('warn')
+      expect(message).toContain('Failed to check migration lock')
+    })
+
+    it('should suppress messages below the configured level', async () => {
+      const customLogger = vi.fn()
+      const loggingMigrate = new OrkMigrate({ logging: { level: 'error', customLogger } })
+      const errorMock = KyselyMockFactory.createDatabaseErrorSpyMock(new Error('lock check failed'))
+
+      await loggingMigrate.isMigrationLocked(errorMock)
+
+      // The "Failed to check migration lock" is logged at 'warn' — should be suppressed by level=error
+      const warnCalls = customLogger.mock.calls.filter((call) => call[0] === 'warn')
+      expect(warnCalls).toHaveLength(0)
+    })
   })
 
   describe('diff', () => {
