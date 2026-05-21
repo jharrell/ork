@@ -81,16 +81,26 @@ describe('OrkMigrate', () => {
       expect(message).toContain('Failed to check migration lock')
     })
 
-    it('should suppress messages below the configured level', async () => {
+    it('should pass every message to customLogger; threshold filtering is the logger\'s responsibility', async () => {
       const customLogger = vi.fn()
       const loggingMigrate = new OrkMigrate({ logging: { level: 'error', customLogger } })
       const errorMock = KyselyMockFactory.createDatabaseErrorSpyMock(new Error('lock check failed'))
 
       await loggingMigrate.isMigrationLocked(errorMock)
 
-      // The "Failed to check migration lock" is logged at 'warn' — should be suppressed by level=error
       const warnCalls = customLogger.mock.calls.filter((call) => call[0] === 'warn')
-      expect(warnCalls).toHaveLength(0)
+      expect(warnCalls).toHaveLength(1)
+    })
+
+    it('should suppress messages below configured level when using the default console logger', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const loggingMigrate = new OrkMigrate({ logging: { level: 'error' } })
+      const errorMock = KyselyMockFactory.createDatabaseErrorSpyMock(new Error('lock check failed'))
+
+      await loggingMigrate.isMigrationLocked(errorMock)
+
+      expect(warnSpy).not.toHaveBeenCalled()
+      warnSpy.mockRestore()
     })
   })
 
@@ -426,14 +436,7 @@ describe('OrkMigrate', () => {
         requireExplicitConfirmation: false,
       }
 
-      const loggingConfig = {
-        level: 'info' as const,
-        logStatements: false,
-        logExecutionTimes: false,
-        logProgress: false,
-      }
-
-      const result = await migrate.applyWithConfirmation(mockKyselyInstance, testSchema, promptConfig, loggingConfig)
+      const result = await migrate.applyWithConfirmation(mockKyselyInstance, testSchema, promptConfig)
 
       expect(result.success).toBe(true)
       expect(typeof result.executionTime).toBe('number')
@@ -453,14 +456,7 @@ describe('OrkMigrate', () => {
         requireExplicitConfirmation: true,
       }
 
-      const loggingConfig = {
-        level: 'info' as const,
-        logStatements: false,
-        logExecutionTimes: false,
-        logProgress: false,
-      }
-
-      const result = await migrate.applyWithConfirmation(mockKyselyInstance, testSchema, promptConfig, loggingConfig)
+      const result = await migrate.applyWithConfirmation(mockKyselyInstance, testSchema, promptConfig)
 
       // Should be cancelled due to high risk and explicit confirmation requirement
       expect(result.success).toBe(false)
