@@ -24,6 +24,7 @@ import type {
   MigrationImpact,
   MigrationLock,
   MigrationLoggingConfig,
+  MigrationLogLevel,
   MigrationOptions,
   MigrationPreview,
   MigrationProgress,
@@ -32,6 +33,7 @@ import type {
   MigrationRollback,
   MigrationSummary,
   MigrationValidation,
+  ResolvedMigrationLoggingConfig,
 } from './types'
 
 type SqliteCapabilities = {
@@ -42,26 +44,58 @@ type SqliteCapabilities = {
 
 const INTERNAL_MIGRATION_TABLES = new Set(['_ork_migrations', '_ork_migration_locks'])
 
+const LOG_LEVEL_SEVERITY: Record<MigrationLogLevel, number> = {
+  debug: 10,
+  info: 20,
+  warn: 30,
+  error: 40,
+}
+
+const DEFAULT_LOGGING_CONFIG: ResolvedMigrationLoggingConfig = {
+  level: 'info',
+  logStatements: false,
+  logExecutionTimes: false,
+  logProgress: false,
+}
+
+const APPLY_WITH_CONFIRMATION_LOGGING_DEFAULTS: ResolvedMigrationLoggingConfig = {
+  level: 'info',
+  logStatements: true,
+  logExecutionTimes: true,
+  logProgress: true,
+}
+
 /**
  * Main migration engine class that works directly with Kysely dialect instances
  */
 export class OrkMigrate {
   // TODO: Split this class into focused modules (diffing, execution, history/locks, preview/logging).
-  private readonly options: Required<MigrationOptions>
+  private readonly options: Omit<Required<MigrationOptions>, 'logging'> & { logging: ResolvedMigrationLoggingConfig }
+  private readonly userLoggingOverrides: MigrationLoggingConfig
 
   constructor(options: MigrationOptions = {}) {
+    this.userLoggingOverrides = options.logging ?? {}
     this.options = {
       useTransaction: true,
       timeout: 30000,
       validateSchema: true,
       migrationTableName: '_ork_migrations',
-      logging: {
-        level: 'info',
-        logStatements: false,
-        logExecutionTimes: false,
-        logProgress: false,
-      },
       ...options,
+      logging: this.resolveLoggingConfig(options.logging),
+    }
+  }
+
+  private resolveLoggingConfig(
+    overrides?: MigrationLoggingConfig,
+    base: ResolvedMigrationLoggingConfig = DEFAULT_LOGGING_CONFIG,
+  ): ResolvedMigrationLoggingConfig {
+    if (!overrides) return base
+    return {
+      level: overrides.level ?? base.level,
+      logStatements: overrides.logStatements ?? base.logStatements,
+      logExecutionTimes: overrides.logExecutionTimes ?? base.logExecutionTimes,
+      logProgress: overrides.logProgress ?? base.logProgress,
+      customLogger: overrides.customLogger ?? base.customLogger,
     }
   }
 
@@ -547,13 +581,14 @@ export class OrkMigrate {
       showDetailedSummary: true,
       requireExplicitConfirmation: true,
     },
-    loggingConfig: MigrationLoggingConfig = {
-      level: 'info',
-      logStatements: true,
-      logExecutionTimes: true,
-      logProgress: true,
-    },
+    loggingOverrides?: MigrationLoggingConfig,
   ): Promise<MigrationResult> {
+    // Layer defaults: verbose apply baseline → user's constructor overrides → call-site overrides
+    const withUserOverrides = this.resolveLoggingConfig(
+      this.userLoggingOverrides,
+      APPLY_WITH_CONFIRMATION_LOGGING_DEFAULTS,
+    )
+    const loggingConfig = this.resolveLoggingConfig(loggingOverrides, withUserOverrides)
     const startTime = Date.now()
     let lock: MigrationLock | null = null
 
@@ -2978,7 +3013,12 @@ export class OrkMigrate {
   /**
    * Log message with appropriate level and formatting
    */
-  private log(config: MigrationLoggingConfig, level: string, message: string, metadata?: unknown): void {
+  private log(config: MigrationLoggingConfig, level: MigrationLogLevel, message: string, metadata?: unknown): void {
+    const configuredLevel: MigrationLogLevel = config.level ?? 'info'
+    if (LOG_LEVEL_SEVERITY[level] < LOG_LEVEL_SEVERITY[configuredLevel]) {
+      return
+    }
+
     if (config.customLogger) {
       config.customLogger(level, message, metadata)
       return
@@ -2999,12 +3039,8 @@ export class OrkMigrate {
         console.info(formattedMessage, metadata || '')
         break
       case 'debug':
-        if (config.level === 'debug') {
-          console.debug(formattedMessage, metadata || '')
-        }
+        console.debug(formattedMessage, metadata || '')
         break
-      default:
-        console.log(formattedMessage, metadata || '')
     }
   }
 
