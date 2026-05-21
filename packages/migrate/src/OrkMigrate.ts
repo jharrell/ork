@@ -51,6 +51,19 @@ const LOG_LEVEL_SEVERITY: Record<MigrationLogLevel, number> = {
   error: 40,
 }
 
+const CONSOLE_LOGGER_BY_LEVEL: Record<MigrationLogLevel, (msg: string, meta?: unknown) => void> = {
+  error: (msg, meta) => console.error(msg, meta ?? ''),
+  warn: (msg, meta) => console.warn(msg, meta ?? ''),
+  info: (msg, meta) => console.info(msg, meta ?? ''),
+  debug: (msg, meta) => console.debug(msg, meta ?? ''),
+}
+
+const defaultLogger = (level: MigrationLogLevel, message: string, metadata?: unknown): void => {
+  const timestamp = new Date().toISOString()
+  const formattedMessage = `[${timestamp}] [${level.toUpperCase()}] ${message}`
+  CONSOLE_LOGGER_BY_LEVEL[level](formattedMessage, metadata)
+}
+
 const DEFAULT_LOGGING_CONFIG: ResolvedMigrationLoggingConfig = {
   level: 'info',
   logStatements: false,
@@ -89,14 +102,7 @@ export class OrkMigrate {
     overrides?: MigrationLoggingConfig,
     base: ResolvedMigrationLoggingConfig = DEFAULT_LOGGING_CONFIG,
   ): ResolvedMigrationLoggingConfig {
-    if (!overrides) return base
-    return {
-      level: overrides.level ?? base.level,
-      logStatements: overrides.logStatements ?? base.logStatements,
-      logExecutionTimes: overrides.logExecutionTimes ?? base.logExecutionTimes,
-      logProgress: overrides.logProgress ?? base.logProgress,
-      customLogger: overrides.customLogger ?? base.customLogger,
-    }
+    return { ...base, ...overrides }
   }
 
   async diff(kyselyInstance: AnyKyselyDatabase, schemaPath: string): Promise<MigrationDiff> {
@@ -354,10 +360,7 @@ export class OrkMigrate {
       const locks = await query.execute()
       return locks.length > 0
     } catch (error) {
-      this.log(
-        this.options.logging,
-        'warn',
-        `Failed to check migration lock: ${error instanceof Error ? error.message : String(error)}`,
+      this.warn(`Failed to check migration lock: ${error instanceof Error ? error.message : String(error)}`,
       )
       return false
     }
@@ -596,7 +599,7 @@ export class OrkMigrate {
       // Generate preview
       const preview = await this.generateMigrationPreview(kyselyInstance, schemaPath)
 
-      this.log(loggingConfig, 'info', 'Migration preview generated', {
+      this.logWith(loggingConfig, 'info', 'Migration preview generated', {
         totalOperations: preview.summary.totalOperations,
         riskLevel: preview.riskAssessment.level,
       })
@@ -612,7 +615,7 @@ export class OrkMigrate {
       if (needsConfirmation && promptConfig.enabled) {
         const confirmed = this.promptForConfirmation(preview, promptConfig, loggingConfig)
         if (!confirmed) {
-          this.log(loggingConfig, 'info', 'Migration cancelled by user')
+          this.logWith(loggingConfig, 'info', 'Migration cancelled by user')
           return {
             success: false,
             statementsExecuted: 0,
@@ -628,7 +631,7 @@ export class OrkMigrate {
       }
 
       if (preview.statements.length === 0) {
-        this.log(loggingConfig, 'info', 'No migration changes detected')
+        this.logWith(loggingConfig, 'info', 'No migration changes detected')
         return {
           success: true,
           statementsExecuted: 0,
@@ -641,7 +644,7 @@ export class OrkMigrate {
       const migrationId = `migration_${Date.now()}`
       lock = await this.acquireMigrationLock(kyselyInstance, migrationId)
 
-      this.log(loggingConfig, 'info', 'Starting migration execution', {
+      this.logWith(loggingConfig, 'info', 'Starting migration execution', {
         migrationId,
         totalStatements: preview.statements.length,
       })
@@ -671,12 +674,12 @@ export class OrkMigrate {
 
       if (result.success) {
         await this.recordMigration(kyselyInstance, migrationDiff, result.executionTime)
-        this.log(loggingConfig, 'info', 'Migration completed successfully', {
+        this.logWith(loggingConfig, 'info', 'Migration completed successfully', {
           statementsExecuted: result.statementsExecuted,
           executionTime: result.executionTime,
         })
       } else {
-        this.log(loggingConfig, 'error', 'Migration failed', { errors: result.errors })
+        this.logWith(loggingConfig, 'error', 'Migration failed', { errors: result.errors })
       }
 
       return {
@@ -684,7 +687,7 @@ export class OrkMigrate {
         executionTime: Date.now() - startTime,
       }
     } catch (error) {
-      this.log(loggingConfig, 'error', 'Migration error', {
+      this.logWith(loggingConfig, 'error', 'Migration error', {
         error: error instanceof Error ? error.message : String(error),
       })
       return {
@@ -928,7 +931,7 @@ export class OrkMigrate {
         indexes: [], // TODO: Implement proper index introspection when Kysely supports it
       }
     } catch (error) {
-      this.log(this.options.logging, 'warn', `Could not retrieve constraint info for ${tableName}: ${error}`)
+      this.warn(`Could not retrieve constraint info for ${tableName}: ${error}`)
       return {
         primaryKey: [],
         foreignKeys: [],
@@ -1594,7 +1597,7 @@ export class OrkMigrate {
     }
 
     // Fallback: convert to string and log warning
-    this.log(this.options.logging, 'warn', `Unexpected default value type for SQL: ${typeof value}`, { value })
+    this.warn(`Unexpected default value type for SQL: ${typeof value}`, { value })
     return String(value)
   }
 
@@ -1615,7 +1618,7 @@ export class OrkMigrate {
     if (provider === 'sqlite') return 'sqlite'
 
     // Default to postgresql for unknown providers
-    this.log(this.options.logging, 'warn', `Unknown provider '${provider}', defaulting to postgresql`)
+    this.warn(`Unknown provider '${provider}', defaulting to postgresql`)
     return 'postgresql'
   }
 
@@ -1871,10 +1874,7 @@ export class OrkMigrate {
       }
     } catch (error) {
       // Fall back to basic type mapping if field-translator fails
-      this.log(
-        this.options.logging,
-        'warn',
-        `Failed to use field-translator for ${field.name}, falling back to basic type mapping`,
+      this.warn(`Failed to use field-translator for ${field.name}, falling back to basic type mapping`,
         { error },
       )
     }
@@ -2247,10 +2247,7 @@ export class OrkMigrate {
       try {
         rollbackInfo = this.generateRollbackForStatements(kyselyInstance, diff.statements)
       } catch (error) {
-        this.log(
-          this.options.logging,
-          'warn',
-          `Failed to generate rollback info: ${error instanceof Error ? error.message : String(error)}`,
+        this.warn(`Failed to generate rollback info: ${error instanceof Error ? error.message : String(error)}`,
         )
       }
 
@@ -2273,10 +2270,7 @@ export class OrkMigrate {
         })
         .execute()
     } catch (error) {
-      this.log(
-        this.options.logging,
-        'warn',
-        `Failed to record migration: ${error instanceof Error ? error.message : String(error)}`,
+      this.warn(`Failed to record migration: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
   }
@@ -2325,10 +2319,7 @@ export class OrkMigrate {
       const now = new Date().toISOString()
       await kyselyInstance.deleteFrom('_ork_migration_locks').where('expiresAt', '<', now).execute()
     } catch (error) {
-      this.log(
-        this.options.logging,
-        'warn',
-        `Failed to cleanup expired locks: ${error instanceof Error ? error.message : String(error)}`,
+      this.warn(`Failed to cleanup expired locks: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
   }
@@ -2387,7 +2378,7 @@ export class OrkMigrate {
 
       return null
     } catch (error) {
-      this.log(this.options.logging, 'warn', `Failed to generate reverse statement for: ${statement}`)
+      this.warn(`Failed to generate reverse statement for: ${statement}`)
       return null
     }
   }
@@ -2423,10 +2414,7 @@ export class OrkMigrate {
         })
         .execute()
     } catch (error) {
-      this.log(
-        this.options.logging,
-        'warn',
-        `Failed to record rollback: ${error instanceof Error ? error.message : String(error)}`,
+      this.warn(`Failed to record rollback: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
   }
@@ -2438,10 +2426,7 @@ export class OrkMigrate {
     try {
       await kyselyInstance.deleteFrom(this.options.migrationTableName).where('id', '=', migrationId).execute()
     } catch (error) {
-      this.log(
-        this.options.logging,
-        'warn',
-        `Failed to remove migration from history: ${error instanceof Error ? error.message : String(error)}`,
+      this.warn(`Failed to remove migration from history: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
   }
@@ -2481,19 +2466,13 @@ export class OrkMigrate {
 
             await alterBuilder.execute()
           } catch (error) {
-            this.log(
-              this.options.logging,
-              'warn',
-              `Failed to add column ${column.name}: ${error instanceof Error ? error.message : String(error)}`,
+            this.warn(`Failed to add column ${column.name}: ${error instanceof Error ? error.message : String(error)}`,
             )
           }
         }
       }
     } catch (error) {
-      this.log(
-        this.options.logging,
-        'warn',
-        `Failed to upgrade migration table schema: ${error instanceof Error ? error.message : String(error)}`,
+      this.warn(`Failed to upgrade migration table schema: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
   }
@@ -2790,50 +2769,50 @@ export class OrkMigrate {
    * Display migration preview to user
    */
   private displayMigrationPreview(preview: MigrationPreview, loggingConfig: MigrationLoggingConfig): void {
-    this.log(loggingConfig, 'info', '\n=== MIGRATION PREVIEW ===')
-    this.log(loggingConfig, 'info', preview.description)
+    this.logWith(loggingConfig, 'info', '\n=== MIGRATION PREVIEW ===')
+    this.logWith(loggingConfig, 'info', preview.description)
 
-    this.log(loggingConfig, 'info', `\nRisk Level: ${preview.riskAssessment.level.toUpperCase()}`)
+    this.logWith(loggingConfig, 'info', `\nRisk Level: ${preview.riskAssessment.level.toUpperCase()}`)
 
     if (preview.riskAssessment.factors.length > 0) {
-      this.log(loggingConfig, 'info', '\nRisk Factors:')
+      this.logWith(loggingConfig, 'info', '\nRisk Factors:')
       preview.riskAssessment.factors.forEach((factor) => {
-        this.log(loggingConfig, 'info', `  • ${factor}`)
+        this.logWith(loggingConfig, 'info', `  • ${factor}`)
       })
     }
 
     if (preview.riskAssessment.recommendations.length > 0) {
-      this.log(loggingConfig, 'info', '\nRecommendations:')
+      this.logWith(loggingConfig, 'info', '\nRecommendations:')
       preview.riskAssessment.recommendations.forEach((rec) => {
-        this.log(loggingConfig, 'info', `  • ${rec}`)
+        this.logWith(loggingConfig, 'info', `  • ${rec}`)
       })
     }
 
-    this.log(
+    this.logWith(
       loggingConfig,
       'info',
       `\nEstimated execution time: ${preview.summary.performanceImpact.recommendedMaintenanceWindow}`,
     )
 
     if (preview.rollbackInfo.available) {
-      this.log(loggingConfig, 'info', '✅ Rollback available')
+      this.logWith(loggingConfig, 'info', '✅ Rollback available')
     } else {
-      this.log(loggingConfig, 'warn', '⚠️  Rollback not available')
+      this.logWith(loggingConfig, 'warn', '⚠️  Rollback not available')
       if (preview.rollbackInfo.warnings.length > 0) {
         preview.rollbackInfo.warnings.forEach((warning) => {
-          this.log(loggingConfig, 'warn', `  • ${warning}`)
+          this.logWith(loggingConfig, 'warn', `  • ${warning}`)
         })
       }
     }
 
     if (loggingConfig.logStatements && preview.statements.length > 0) {
-      this.log(loggingConfig, 'info', '\nSQL Statements to execute:')
+      this.logWith(loggingConfig, 'info', '\nSQL Statements to execute:')
       preview.statements.forEach((stmt, index) => {
-        this.log(loggingConfig, 'info', `  ${index + 1}. ${stmt}`)
+        this.logWith(loggingConfig, 'info', `  ${index + 1}. ${stmt}`)
       })
     }
 
-    this.log(loggingConfig, 'info', '========================\n')
+    this.logWith(loggingConfig, 'info', '========================\n')
   }
 
   /**
@@ -2864,11 +2843,11 @@ export class OrkMigrate {
       config.customMessages?.confirmationPrompt ||
       `Do you want to proceed with this ${preview.riskAssessment.level} risk migration?`
 
-    this.log(loggingConfig, 'info', message)
+    this.logWith(loggingConfig, 'info', message)
 
     // For testing purposes, automatically approve low/medium risk, require explicit approval for high risk
     if (preview.riskAssessment.level === 'high' && config.requireExplicitConfirmation) {
-      this.log(loggingConfig, 'warn', 'High-risk migration requires explicit confirmation')
+      this.logWith(loggingConfig, 'warn', 'High-risk migration requires explicit confirmation')
       // In real implementation, would wait for user input
       return false // Conservative default for high-risk operations
     }
@@ -2903,7 +2882,7 @@ export class OrkMigrate {
       }
 
       if (loggingConfig.logProgress) {
-        this.log(loggingConfig, 'info', `[${progress.percentComplete}%] Executing: ${progress.currentOperation}`)
+        this.logWith(loggingConfig, 'info', `[${progress.percentComplete}%] Executing: ${progress.currentOperation}`)
       }
 
       try {
@@ -2913,7 +2892,7 @@ export class OrkMigrate {
 
         if (loggingConfig.logExecutionTimes) {
           const executionTime = Date.now() - statementStartTime
-          this.log(loggingConfig, 'debug', `Statement executed in ${executionTime}ms`)
+          this.logWith(loggingConfig, 'debug', `Statement executed in ${executionTime}ms`)
         }
       } catch (error) {
         errors.push({
@@ -2922,7 +2901,7 @@ export class OrkMigrate {
           stack: error instanceof Error ? error.stack : undefined,
         })
 
-        this.log(loggingConfig, 'error', `Failed to execute statement: ${statement}`, { error })
+        this.logWith(loggingConfig, 'error', `Failed to execute statement: ${statement}`, { error })
       }
     }
 
@@ -2963,7 +2942,7 @@ export class OrkMigrate {
           }
 
           if (loggingConfig.logProgress) {
-            this.log(loggingConfig, 'info', `[${progress.percentComplete}%] Executing: ${progress.currentOperation}`)
+            this.logWith(loggingConfig, 'info', `[${progress.percentComplete}%] Executing: ${progress.currentOperation}`)
           }
 
           try {
@@ -2973,7 +2952,7 @@ export class OrkMigrate {
 
             if (loggingConfig.logExecutionTimes) {
               const executionTime = Date.now() - statementStartTime
-              this.log(loggingConfig, 'debug', `Statement executed in ${executionTime}ms`)
+              this.logWith(loggingConfig, 'debug', `Statement executed in ${executionTime}ms`)
             }
           } catch (error) {
             errors.push({
@@ -3011,37 +2990,34 @@ export class OrkMigrate {
   }
 
   /**
-   * Log message with appropriate level and formatting
+   * Emit a log message using the instance's configured logger. Honors level
+   * filtering and routes through customLogger if provided, falling back to
+   * the default console-backed logger.
    */
-  private log(config: MigrationLoggingConfig, level: MigrationLogLevel, message: string, metadata?: unknown): void {
+  private log(level: MigrationLogLevel, message: string, metadata?: unknown): void {
+    this.logWith(this.options.logging, level, message, metadata)
+  }
+
+  private warn(message: string, metadata?: unknown): void {
+    this.log('warn', message, metadata)
+  }
+
+  /**
+   * Emit a log message against an explicit config (used by apply-flow methods
+   * that resolve their own logging config with verbose defaults).
+   */
+  private logWith(
+    config: MigrationLoggingConfig,
+    level: MigrationLogLevel,
+    message: string,
+    metadata?: unknown,
+  ): void {
     const configuredLevel: MigrationLogLevel = config.level ?? 'info'
     if (LOG_LEVEL_SEVERITY[level] < LOG_LEVEL_SEVERITY[configuredLevel]) {
       return
     }
-
-    if (config.customLogger) {
-      config.customLogger(level, message, metadata)
-      return
-    }
-
-    // Default console logging
-    const timestamp = new Date().toISOString()
-    const formattedMessage = `[${timestamp}] [${level.toUpperCase()}] ${message}`
-
-    switch (level) {
-      case 'error':
-        console.error(formattedMessage, metadata || '')
-        break
-      case 'warn':
-        console.warn(formattedMessage, metadata || '')
-        break
-      case 'info':
-        console.info(formattedMessage, metadata || '')
-        break
-      case 'debug':
-        console.debug(formattedMessage, metadata || '')
-        break
-    }
+    const logger = config.customLogger ?? defaultLogger
+    logger(level, message, metadata)
   }
 
   private asRecord(value: unknown): Record<string, unknown> {
@@ -3163,10 +3139,7 @@ export class OrkMigrate {
 
       return result
     } catch (error) {
-      this.log(
-        this.options.logging,
-        'warn',
-        `Failed to compare foreign keys for table ${currentTable.name}: ${
+      this.warn(`Failed to compare foreign keys for table ${currentTable.name}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       )
@@ -3251,10 +3224,7 @@ export class OrkMigrate {
 
       return foreignKeys
     } catch (error) {
-      this.log(
-        this.options.logging,
-        'warn',
-        `Failed to extract foreign keys from model ${model.name}: ${
+      this.warn(`Failed to extract foreign keys from model ${model.name}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       )
@@ -3414,10 +3384,7 @@ export class OrkMigrate {
 
       return result
     } catch (error) {
-      this.log(
-        this.options.logging,
-        'warn',
-        `Failed to compare indexes for table ${currentTable.name}: ${
+      this.warn(`Failed to compare indexes for table ${currentTable.name}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       )
@@ -3532,10 +3499,7 @@ export class OrkMigrate {
 
       return indexes
     } catch (error) {
-      this.log(
-        this.options.logging,
-        'warn',
-        `Failed to extract indexes from model ${model.name}: ${error instanceof Error ? error.message : String(error)}`,
+      this.warn(`Failed to extract indexes from model ${model.name}: ${error instanceof Error ? error.message : String(error)}`,
       )
       return []
     }
@@ -3720,10 +3684,7 @@ export class OrkMigrate {
 
       return result
     } catch (error) {
-      this.log(
-        this.options.logging,
-        'warn',
-        `Failed to compare enums: ${error instanceof Error ? error.message : String(error)}`,
+      this.warn(`Failed to compare enums: ${error instanceof Error ? error.message : String(error)}`,
       )
       return result
     }
@@ -3794,10 +3755,7 @@ export class OrkMigrate {
       // creating a new enum, updating all columns, then dropping the old enum
       const valuesToRemove = currentEnum.values.filter((value) => !targetValuesSet.has(value))
       if (valuesToRemove.length > 0) {
-        this.log(
-          this.options.logging,
-          'warn',
-          `Cannot safely remove enum values [${valuesToRemove.join(', ')}] from enum '${currentEnum.name}'. ` +
+        this.warn(`Cannot safely remove enum values [${valuesToRemove.join(', ')}] from enum '${currentEnum.name}'. ` +
             `This would require recreating the enum which may cause data loss.`,
         )
       }
