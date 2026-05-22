@@ -285,15 +285,6 @@ export interface MigrationLoggingConfig {
   customLogger?: MigrationCustomLogger
 }
 
-/** Internal fully-resolved logging configuration: every field except customLogger is required. */
-export interface ResolvedMigrationLoggingConfig {
-  level: MigrationLogLevel
-  logStatements: boolean
-  logExecutionTimes: boolean
-  logProgress: boolean
-  customLogger?: MigrationCustomLogger
-}
-
 /** Migration preview result */
 export interface MigrationPreview {
   /** Detailed summary */
