@@ -23,7 +23,6 @@ import type {
   MigrationHistoryEntry,
   MigrationImpact,
   MigrationLock,
-  MigrationLoggingConfig,
   MigrationLogLevel,
   MigrationLogMetadata,
   MigrationOptions,
@@ -34,7 +33,6 @@ import type {
   MigrationRollback,
   MigrationSummary,
   MigrationValidation,
-  ResolvedMigrationLoggingConfig,
 } from './types'
 
 type SqliteCapabilities = {
@@ -75,27 +73,14 @@ const defaultLogger = (
   CONSOLE_BY_LEVEL[level](formattedMessage, metadata)
 }
 
-const DEFAULT_LOGGING_CONFIG: ResolvedMigrationLoggingConfig = {
-  level: 'info',
-  logStatements: false,
-  logExecutionTimes: false,
-  logProgress: false,
-}
-
-const resolveLoggingConfig = (overrides?: MigrationLoggingConfig): ResolvedMigrationLoggingConfig => ({
-  level: overrides?.level ?? DEFAULT_LOGGING_CONFIG.level,
-  logStatements: overrides?.logStatements ?? DEFAULT_LOGGING_CONFIG.logStatements,
-  logExecutionTimes: overrides?.logExecutionTimes ?? DEFAULT_LOGGING_CONFIG.logExecutionTimes,
-  logProgress: overrides?.logProgress ?? DEFAULT_LOGGING_CONFIG.logProgress,
-  customLogger: overrides?.customLogger,
-})
+const DEFAULT_LOG_LEVEL: MigrationLogLevel = 'info'
 
 /**
  * Main migration engine class that works directly with Kysely dialect instances
  */
 export class OrkMigrate {
   // TODO: Split this class into focused modules (diffing, execution, history/locks, preview/logging).
-  private readonly options: Omit<Required<MigrationOptions>, 'logging'> & { logging: ResolvedMigrationLoggingConfig }
+  private readonly options: Required<MigrationOptions>
 
   constructor(options: MigrationOptions = {}) {
     this.options = {
@@ -104,7 +89,7 @@ export class OrkMigrate {
       validateSchema: true,
       migrationTableName: '_ork_migrations',
       ...options,
-      logging: resolveLoggingConfig(options.logging),
+      logging: options.logging ?? {},
     }
   }
 
@@ -2977,7 +2962,7 @@ export class OrkMigrate {
       customLogger(level, message, metadata)
       return
     }
-    defaultLogger(level, message, metadata, threshold)
+    defaultLogger(level, message, metadata, threshold ?? DEFAULT_LOG_LEVEL)
   }
 
   private warn(message: string, metadata?: MigrationLogMetadata): void {
