@@ -10,6 +10,8 @@ export interface MigrationOptions {
   validateSchema?: boolean
   /** Custom migration table name (default: '_ork_migrations') */
   migrationTableName?: string
+  /** Logging configuration for migration operations */
+  logging?: MigrationLoggingConfig
 }
 
 /**
@@ -260,18 +262,27 @@ export interface MigrationProgress {
   warnings: string[]
 }
 
+/** Migration log level, ordered from most to least verbose */
+export type MigrationLogLevel = 'debug' | 'info' | 'warn' | 'error'
+
+/** Structured metadata attached to a log message */
+export type MigrationLogMetadata = Record<string, unknown>
+
+/** Custom logger sink. Receives every message — threshold filtering is the logger's responsibility. */
+export type MigrationCustomLogger = (level: MigrationLogLevel, message: string, metadata?: MigrationLogMetadata) => void
+
 /** Migration logging configuration */
 export interface MigrationLoggingConfig {
-  /** Log level */
-  level: 'debug' | 'info' | 'warn' | 'error'
-  /** Whether to log SQL statements */
-  logStatements: boolean
-  /** Whether to log execution times */
-  logExecutionTimes: boolean
-  /** Whether to log progress updates */
-  logProgress: boolean
+  /** Minimum log level the default console logger will emit (default: 'info'). Ignored when customLogger is set. */
+  level?: MigrationLogLevel
+  /** Whether to log SQL statements in the migration preview */
+  logStatements?: boolean
+  /** Whether to log per-statement execution times */
+  logExecutionTimes?: boolean
+  /** Whether to log progress updates during apply */
+  logProgress?: boolean
   /** Custom logger function */
-  customLogger?: (level: string, message: string, metadata?: unknown) => void
+  customLogger?: MigrationCustomLogger
 }
 
 /** Migration preview result */
