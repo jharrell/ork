@@ -40,6 +40,7 @@ export async function loadOrkConfig(options: ConfigLoadOptions = {}): Promise<Co
     const { config: loadedConfig } = await loadConfig({
       cwd: dirname(configPath),
       configFile: basename(configPath),
+      dotenv: true,
       jitiOptions: {
         interopDefault: true,
         moduleCache: false,
@@ -63,6 +64,7 @@ export async function loadOrkConfig(options: ConfigLoadOptions = {}): Promise<Co
   const { config: loadedConfig, configFile } = await loadConfig({
     cwd,
     name: 'ork',
+    dotenv: true,
     jitiOptions: {
       interopDefault: true,
       moduleCache: false,
