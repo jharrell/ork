@@ -40,6 +40,7 @@ import {
   View,
 } from './lexer.js'
 import type {
+  ArrayElementAST,
   AttributeArgumentAST,
   AttributeAST,
   AttributeValue,
@@ -387,7 +388,15 @@ export class Parser extends CstParser {
     this.OR([
       { ALT: () => this.CONSUME(StringLiteral, { LABEL: 'element' }) },
       { ALT: () => this.CONSUME(NumberLiteral, { LABEL: 'element' }) },
-      { ALT: () => this.CONSUME(IdentifierLike, { LABEL: 'element' }) },
+      {
+        ALT: () => {
+          this.CONSUME(IdentifierLike, { LABEL: 'element' })
+          // Per-field index modifiers: [title(sort: Desc), body(ops: raw("gin_trgm_ops"))]
+          this.OPTION(() => {
+            this.SUBRULE(this.attributeArguments)
+          })
+        },
+      },
     ])
   })
 
@@ -602,11 +611,12 @@ export class SchemaVisitor implements ICstVisitor<unknown, unknown> {
     const arrayNode = getNodes(children, 'arrayValue')[0]
     const functionNode = getNodes(children, 'functionCall')[0]
     const valueToken = getTokens(children, 'value')[0]
+    const elements = arrayNode ? this.arrayElements(arrayNode) : undefined
 
     let value: AttributeValue = ''
 
-    if (arrayNode) {
-      value = this.arrayValue(arrayNode)
+    if (elements) {
+      value = elements.map((element) => element.value)
     } else if (functionNode) {
       value = this.functionCall(functionNode)
     } else if (valueToken) {
@@ -618,17 +628,25 @@ export class SchemaVisitor implements ICstVisitor<unknown, unknown> {
       span: this.getSpan(node),
       name,
       value,
+      ...(elements ? { elements } : {}),
     }
   }
 
   arrayValue(node: CstNode): Array<string | number | boolean> {
-    const children = node.children
-    return getNodes(children, 'arrayElement').map((child) => this.arrayElement(child))
+    return this.arrayElements(node).map((element) => element.value)
   }
 
-  arrayElement(node: CstNode): string | number | boolean {
-    const token = getTokens(node.children, 'element')[0]
-    return token ? parseScalar(token) : ''
+  arrayElement(node: CstNode): ArrayElementAST {
+    const children = node.children
+    const token = getTokens(children, 'element')[0]
+    const argsNode = getNodes(children, 'attributeArguments')[0]
+
+    return {
+      type: 'ArrayElement',
+      span: this.getSpan(node),
+      value: token ? parseScalar(token) : '',
+      args: argsNode ? this.attributeArguments(argsNode) : [],
+    }
   }
 
   enumDeclaration(node: CstNode): EnumAST {
@@ -657,6 +675,10 @@ export class SchemaVisitor implements ICstVisitor<unknown, unknown> {
       name,
       attributes,
     }
+  }
+
+  private arrayElements(node: CstNode): ArrayElementAST[] {
+    return getNodes(node.children, 'arrayElement').map((child) => this.arrayElement(child))
   }
 
   private buildModelLike(node: CstNode, kind: 'Model' | 'Type' | 'View') {

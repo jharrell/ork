@@ -365,6 +365,59 @@ describe('Schema Parser Integration Tests', () => {
     })
   })
 
+  describe('Index Argument Forms', () => {
+    test('should parse index type and per-field modifiers', () => {
+      const schema = `
+        model Post {
+          id      Int    @id
+          title   String
+          body    String
+          email   String
+          tenant  Int
+
+          @@index([title], type: Gin)
+          @@index([title(sort: Desc), body(length: 100)])
+          @@index([body(ops: raw("gin_trgm_ops"))], type: Gin)
+          @@index(fields: [tenant], map: "post_tenant_idx", clustered: false)
+          @@unique([email(sort: Desc), tenant], map: "post_email_tenant_key")
+        }
+      `
+
+      const result = parseSchema(schema)
+
+      expect(result.errors).toHaveLength(0)
+
+      const [gin, sorted, ops, named, unique] = result.ast.models[0].attributes
+      expect(gin.args[0].value).toEqual(['title'])
+      expect(gin.args[1]).toMatchObject({ name: 'type', value: 'Gin' })
+
+      expect(sorted.args[0].value).toEqual(['title', 'body'])
+      expect(sorted.args[0].elements).toEqual([
+        expect.objectContaining({ value: 'title', args: [expect.objectContaining({ name: 'sort', value: 'Desc' })] }),
+        expect.objectContaining({ value: 'body', args: [expect.objectContaining({ name: 'length', value: 100 })] }),
+      ])
+
+      expect(ops.args[0].elements![0].args[0]).toMatchObject({ name: 'ops', value: 'raw("gin_trgm_ops")' })
+
+      expect(named.args[0]).toMatchObject({ name: 'fields', value: ['tenant'] })
+      expect(named.args[2]).toMatchObject({ name: 'clustered', value: false })
+
+      expect(unique.args[0].value).toEqual(['email', 'tenant'])
+      expect(unique.args[0].elements![1].args).toEqual([])
+      expect(unique.args[1]).toMatchObject({ name: 'map', value: 'post_email_tenant_key' })
+    })
+
+    test('should leave plain field lists without element modifiers', () => {
+      const result = parseSchema('model Post { id Int @id title String @@index([title]) }')
+
+      expect(result.errors).toHaveLength(0)
+
+      const index = result.ast.models[0].attributes[0]
+      expect(index.args[0].value).toEqual(['title'])
+      expect(index.args[0].elements).toEqual([expect.objectContaining({ value: 'title', args: [] })])
+    })
+  })
+
   describe('Unsupported Field Types', () => {
     test('should parse Unsupported("...") fields and mark them in the AST', () => {
       const schema = `
