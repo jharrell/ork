@@ -32,6 +32,14 @@ describe('FieldTranslator Integration', () => {
     attributes: [{ name: 'default', args: [{ value: 'now()' }] }],
   }
 
+  const mockBigIntField: FieldAST = {
+    name: 'score',
+    fieldType: 'BigInt',
+    isOptional: false,
+    isList: false,
+    attributes: [],
+  }
+
   describe('Dialect Detection', () => {
     it('should detect PostgreSQL from URL', () => {
       expect(detectDialect('postgresql://user:pass@localhost/db')).toBe('postgresql')
@@ -91,6 +99,16 @@ describe('FieldTranslator Integration', () => {
       const result = analyzer.analyzeField(mockBooleanField)
       expect(result.specialHandling).toContain('nullable')
     })
+
+    it('should keep BigInt writes out of Number() and store them as TEXT', () => {
+      const result = analyzer.analyzeField(mockBigIntField)
+
+      expect(result.columnType).toBe('TEXT')
+      expect(result.transformations.get('create')?.code).toBe('String(data.score)')
+      expect(result.transformations.get('update')?.code).toBe('String(data.score)')
+      expect(result.transformations.get('where')?.code).toBe('String(data.score)')
+      expect(result.transformations.get('select')?.code).toBe('BigInt(data.score)')
+    })
   })
 
   describe('PostgreSQL Transformations', () => {
@@ -110,6 +128,16 @@ describe('FieldTranslator Integration', () => {
     it('should get correct column types', () => {
       const result = analyzer.analyzeField(mockBooleanField)
       expect(result.columnType).toBe('boolean')
+    })
+
+    it('should keep BigInt writes out of Number()', () => {
+      const result = analyzer.analyzeField(mockBigIntField)
+
+      expect(result.columnType).toBe('bigint')
+      expect(result.transformations.get('create')?.code).toBe('BigInt(data.score as string | number | bigint)')
+      expect(result.transformations.get('update')?.code).toBe('BigInt(data.score as string | number | bigint)')
+      expect(result.transformations.get('where')?.code).toBe('BigInt(data.score as string | number | bigint)')
+      expect(result.transformations.get('select')?.code).toBe('BigInt(data.score)')
     })
   })
 

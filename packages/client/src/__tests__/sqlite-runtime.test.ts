@@ -45,6 +45,28 @@ describe('SQLite client integration', () => {
     expect(afterDelete).toBeNull()
   })
 
+  it('round-trips a BigInt beyond 2^53 exactly', async () => {
+    const big = 9007199254740993n
+
+    const created = await testEnv.client.user.create({
+      data: { email: 'sqlite-bigint@example.com', score: big },
+    })
+
+    expect(created.score).toBe(big)
+
+    const found = await testEnv.client.user.findFirst({ where: { score: big } })
+    expect(found?.email).toBe('sqlite-bigint@example.com')
+
+    const updated = await testEnv.client.user.update({
+      where: { email: 'sqlite-bigint@example.com' },
+      data: { score: big + 2n },
+    })
+
+    expect(updated.score).toBe(big + 2n)
+    expect(await testEnv.client.user.count({ where: { score: big } })).toBe(0)
+    expect(await testEnv.client.user.count({ where: { score: big + 2n } })).toBe(1)
+  })
+
   it('supports $transaction with commit and rollback behavior', async () => {
     const txResult = await testEnv.client.$transaction(async (txClient: typeof testEnv.client) => {
       const user = await txClient.user.create({

@@ -64,6 +64,7 @@ async function applyTestSchema(kysely: Kysely<any>) {
       id SERIAL PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       name TEXT,
+      score BIGINT NOT NULL DEFAULT 0,
       "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
       "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
     )
