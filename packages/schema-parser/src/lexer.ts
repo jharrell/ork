@@ -4,16 +4,26 @@
 
 import { createToken, type ILexingError, IToken, Lexer as ChevrotainLexer } from 'chevrotain'
 
+// Category matched by identifiers and by keywords used in identifier position (contextual keywords)
+export const IdentifierLike = createToken({ name: 'IdentifierLike', pattern: ChevrotainLexer.NA })
+
 // Identifiers and literals - declare first for reference
-export const Identifier = createToken({ name: 'Identifier', pattern: /[a-zA-Z_][a-zA-Z0-9_]*/ })
+export const Identifier = createToken({
+  name: 'Identifier',
+  pattern: /[a-zA-Z_][a-zA-Z0-9_]*/,
+  categories: [IdentifierLike],
+})
 
 // Keywords
-export const Model = createToken({ name: 'Model', pattern: /model/, longer_alt: Identifier })
-export const Enum = createToken({ name: 'Enum', pattern: /enum/, longer_alt: Identifier })
-export const DataSource = createToken({ name: 'DataSource', pattern: /datasource/, longer_alt: Identifier })
-export const Generator = createToken({ name: 'Generator', pattern: /generator/, longer_alt: Identifier })
-export const Type = createToken({ name: 'Type', pattern: /type/, longer_alt: Identifier })
-export const View = createToken({ name: 'View', pattern: /view/, longer_alt: Identifier })
+const keyword = (name: string, pattern: RegExp) =>
+  createToken({ name, pattern, longer_alt: Identifier, categories: [IdentifierLike] })
+
+export const Model = keyword('Model', /model/)
+export const Enum = keyword('Enum', /enum/)
+export const DataSource = keyword('DataSource', /datasource/)
+export const Generator = keyword('Generator', /generator/)
+export const Type = keyword('Type', /type/)
+export const View = keyword('View', /view/)
 
 export const StringLiteral = createToken({
   name: 'StringLiteral',
@@ -77,6 +87,7 @@ export const allTokens = [
   NumberLiteral,
   StringLiteral,
   Identifier,
+  IdentifierLike,
 
   // Multi-character punctuation (must come before single-character)
   AtAt,

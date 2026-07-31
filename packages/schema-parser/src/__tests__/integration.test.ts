@@ -365,7 +365,146 @@ describe('Schema Parser Integration Tests', () => {
     })
   })
 
+  describe('Contextual Keywords', () => {
+    test('should parse the canonical Auth.js Account model', () => {
+      const schema = `
+        model Account {
+          id                String  @id @default(cuid())
+          userId            String
+          type              String
+          provider          String
+          providerAccountId String
+          refresh_token     String?
+          access_token      String?
+          expires_at        Int?
+          token_type        String?
+          scope             String?
+          id_token          String?
+          session_state     String?
+          user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+          @@unique([provider, providerAccountId])
+        }
+
+        model User {
+          id       String    @id @default(cuid())
+          accounts Account[]
+        }
+      `
+
+      const result = parseSchema(schema)
+
+      expect(result.errors).toHaveLength(0)
+
+      const account = result.ast.models.find((m) => m.name === 'Account')!
+      expect(account.fields.map((f) => f.name)).toContain('type')
+      expect(account.fields.find((f) => f.name === 'type')!.fieldType).toBe('String')
+      expect(account.attributes[0].name).toBe('unique')
+    })
+
+    test('should allow keywords as field names, field types, and enum values', () => {
+      const schema = `
+        enum Kind {
+          model
+          enum
+          view
+          type
+          generator
+          datasource
+        }
+
+        model Registry {
+          id         Int     @id
+          model      String
+          enum       Int
+          view       Boolean
+          generator  String
+          datasource String
+          type       Kind
+          nested     type?
+        }
+
+        type type {
+          label String
+        }
+      `
+
+      const result = parseSchema(schema)
+
+      expect(result.errors).toHaveLength(0)
+      expect(result.ast.enums[0].values.map((v) => v.name)).toEqual([
+        'model',
+        'enum',
+        'view',
+        'type',
+        'generator',
+        'datasource',
+      ])
+
+      const registry = result.ast.models[0]
+      expect(registry.fields.map((f) => f.name)).toEqual([
+        'id',
+        'model',
+        'enum',
+        'view',
+        'generator',
+        'datasource',
+        'type',
+        'nested',
+      ])
+      expect(registry.fields.find((f) => f.name === 'type')!.fieldType).toBe('Kind')
+      expect(registry.fields.find((f) => f.name === 'nested')!).toMatchObject({ fieldType: 'type', isOptional: true })
+      expect(result.ast.types[0].name).toBe('type')
+    })
+
+    test('should allow keywords in attribute and config positions', () => {
+      const schema = `
+        datasource type {
+          provider = "postgresql"
+          url      = env("DATABASE_URL")
+        }
+
+        model Post {
+          id   Int    @id
+          kind String @map("type")
+
+          @@map("model")
+        }
+      `
+
+      const result = parseSchema(schema)
+
+      expect(result.errors).toHaveLength(0)
+      expect(result.ast.datasources[0].name).toBe('type')
+      expect(result.ast.models[0].fields[1].attributes[0]).toMatchObject({ name: 'map' })
+      expect(result.ast.models[0].attributes[0].args[0].value).toBe('model')
+    })
+  })
+
   describe('Error Handling', () => {
+    test('should report real line and column for syntax errors', () => {
+      const schema = ['model User {', '  id Int @id', '  name String', '  = 5', '}'].join('\n')
+
+      const result = parseSchema(schema)
+
+      expect(result.errors.length).toBeGreaterThan(0)
+      expect(result.errors[0].span.start).toMatchObject({ line: 4, column: 3 })
+    })
+
+    test('should report the last real position when input ends unexpectedly', () => {
+      const schema = ['model User {', '  id Int @id', '  name String'].join('\n')
+
+      const result = parseSchema(schema)
+
+      expect(result.errors.length).toBeGreaterThan(0)
+      for (const error of result.errors) {
+        expect(Number.isFinite(error.span.start.line)).toBe(true)
+        expect(Number.isFinite(error.span.start.column)).toBe(true)
+        expect(Number.isFinite(error.span.end.line)).toBe(true)
+      }
+      expect(result.errors[0].span.start.line).toBe(3)
+    })
+
     test('should handle syntax errors gracefully', () => {
       const schema = `
         model User {

@@ -24,7 +24,7 @@ import {
   Enum,
   Equals,
   Generator,
-  Identifier,
+  IdentifierLike,
   LBrace,
   LBracket,
   LParen,
@@ -101,29 +101,48 @@ function spanFromLocation(location?: CstNodeLocation) {
   }
 }
 
+function coordinate(value: number | undefined, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+// Chevrotain's EOF token carries NaN coordinates, so positions must be validated, not just defaulted.
+function isPositioned(token?: IToken): token is IToken {
+  return token !== undefined && Number.isFinite(token.startLine)
+}
+
 function spanFromToken(token?: IToken) {
   if (!token) {
     return { start: DEFAULT_POSITION, end: DEFAULT_POSITION }
   }
+  const start = {
+    line: coordinate(token.startLine, DEFAULT_POSITION.line),
+    column: coordinate(token.startColumn, DEFAULT_POSITION.column),
+    offset: coordinate(token.startOffset, DEFAULT_POSITION.offset),
+  }
   return {
-    start: {
-      line: token.startLine ?? DEFAULT_POSITION.line,
-      column: token.startColumn ?? DEFAULT_POSITION.column,
-      offset: token.startOffset ?? DEFAULT_POSITION.offset,
-    },
+    start,
     end: {
-      line: token.endLine ?? token.startLine ?? DEFAULT_POSITION.line,
-      column: token.endColumn ?? token.startColumn ?? DEFAULT_POSITION.column,
-      offset: token.endOffset ?? token.startOffset ?? DEFAULT_POSITION.offset,
+      line: coordinate(token.endLine, start.line),
+      column: coordinate(token.endColumn, start.column),
+      offset: coordinate(token.endOffset, start.offset),
     },
   }
 }
 
+function hasPreviousToken(error: IRecognitionException): error is IRecognitionException & { previousToken: IToken } {
+  return 'previousToken' in error
+}
+
 function spanFromRecognitionError(error: IRecognitionException) {
-  const startToken = error.token
-  const endToken = error.resyncedTokens?.length ? error.resyncedTokens[error.resyncedTokens.length - 1] : startToken
+  if (!isPositioned(error.token)) {
+    // Error at EOF: report at the end of the last consumed token.
+    const end = spanFromToken(hasPreviousToken(error) ? error.previousToken : undefined).end
+    return { start: end, end }
+  }
+  const resyncedTokens = (error.resyncedTokens ?? []).filter(isPositioned)
+  const endToken = resyncedTokens.length ? resyncedTokens[resyncedTokens.length - 1] : error.token
   return {
-    start: spanFromToken(startToken).start,
+    start: spanFromToken(error.token).start,
     end: spanFromToken(endToken).end,
   }
 }
@@ -175,14 +194,14 @@ export class Parser extends CstParser {
   // DataSource declaration
   dataSource = this.RULE('dataSource', () => {
     this.CONSUME(DataSource)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.configBlock)
   })
 
   // Generator declaration
   generator = this.RULE('generator', () => {
     this.CONSUME(Generator)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.configBlock)
   })
 
@@ -197,7 +216,7 @@ export class Parser extends CstParser {
 
   // Config property (used in datasource and generator)
   configProperty = this.RULE('configProperty', () => {
-    this.CONSUME(Identifier, { LABEL: 'key' })
+    this.CONSUME(IdentifierLike, { LABEL: 'key' })
     this.CONSUME(Equals)
     this.SUBRULE(this.configValue)
   })
@@ -208,19 +227,19 @@ export class Parser extends CstParser {
       { ALT: () => this.CONSUME(NumberLiteral, { LABEL: 'value' }) },
       { ALT: () => this.SUBRULE(this.functionCall) },
       { ALT: () => this.SUBRULE(this.arrayValue) },
-      { ALT: () => this.CONSUME(Identifier, { LABEL: 'value' }) },
+      { ALT: () => this.CONSUME(IdentifierLike, { LABEL: 'value' }) },
     ])
   })
 
   // Function call like env("DATABASE_URL") or cuid()
   functionCall = this.RULE('functionCall', () => {
-    this.CONSUME(Identifier, { LABEL: 'functionName' })
+    this.CONSUME(IdentifierLike, { LABEL: 'functionName' })
     this.CONSUME(LParen)
     this.OPTION(() => {
       this.OR([
         { ALT: () => this.CONSUME(StringLiteral, { LABEL: 'argument' }) },
         { ALT: () => this.CONSUME(NumberLiteral, { LABEL: 'argument' }) },
-        { ALT: () => this.CONSUME2(Identifier, { LABEL: 'argument' }) },
+        { ALT: () => this.CONSUME2(IdentifierLike, { LABEL: 'argument' }) },
       ])
     })
     this.CONSUME(RParen)
@@ -229,19 +248,19 @@ export class Parser extends CstParser {
   // Model declaration
   model = this.RULE('model', () => {
     this.CONSUME(Model)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.modelBody)
   })
 
   typeDeclaration = this.RULE('typeDeclaration', () => {
     this.CONSUME(Type)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.modelBody)
   })
 
   viewDeclaration = this.RULE('viewDeclaration', () => {
     this.CONSUME(View)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.modelBody)
   })
 
@@ -255,8 +274,8 @@ export class Parser extends CstParser {
 
   // Field declaration
   field = this.RULE('field', () => {
-    this.CONSUME(Identifier, { LABEL: 'name' })
-    this.CONSUME2(Identifier, { LABEL: 'type' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
+    this.CONSUME2(IdentifierLike, { LABEL: 'type' })
 
     // Optional field modifiers
     this.OPTION(() => {
@@ -281,10 +300,10 @@ export class Parser extends CstParser {
   // Field attribute (@id, @unique, @db.VarChar, etc.)
   fieldAttribute = this.RULE('fieldAttribute', () => {
     this.CONSUME(At)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.OPTION1(() => {
       this.CONSUME(Dot)
-      this.CONSUME2(Identifier, { LABEL: 'nativeTypeName' })
+      this.CONSUME2(IdentifierLike, { LABEL: 'nativeTypeName' })
     })
     this.OPTION2(() => {
       this.SUBRULE(this.attributeArguments)
@@ -294,10 +313,10 @@ export class Parser extends CstParser {
   // Model attribute (@@id, @@unique, etc.)
   modelAttribute = this.RULE('modelAttribute', () => {
     this.CONSUME(AtAt)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.OPTION1(() => {
       this.CONSUME(Dot)
-      this.CONSUME2(Identifier, { LABEL: 'nativeTypeName' })
+      this.CONSUME2(IdentifierLike, { LABEL: 'nativeTypeName' })
     })
     this.OPTION2(() => {
       this.SUBRULE(this.attributeArguments)
@@ -320,7 +339,7 @@ export class Parser extends CstParser {
   attributeArgument = this.RULE('attributeArgument', () => {
     // Named argument (name: value) or positional argument
     this.OPTION(() => {
-      this.CONSUME(Identifier, { LABEL: 'name' })
+      this.CONSUME(IdentifierLike, { LABEL: 'name' })
       this.CONSUME(Colon)
     })
 
@@ -328,7 +347,7 @@ export class Parser extends CstParser {
       { ALT: () => this.CONSUME(StringLiteral, { LABEL: 'value' }) },
       { ALT: () => this.CONSUME(NumberLiteral, { LABEL: 'value' }) },
       { ALT: () => this.SUBRULE(this.functionCall) }, // Support function calls like cuid()
-      { ALT: () => this.CONSUME2(Identifier, { LABEL: 'value' }) },
+      { ALT: () => this.CONSUME2(IdentifierLike, { LABEL: 'value' }) },
       { ALT: () => this.SUBRULE(this.arrayValue) }, // Support array values like [userId]
     ])
   })
@@ -349,14 +368,14 @@ export class Parser extends CstParser {
     this.OR([
       { ALT: () => this.CONSUME(StringLiteral, { LABEL: 'element' }) },
       { ALT: () => this.CONSUME(NumberLiteral, { LABEL: 'element' }) },
-      { ALT: () => this.CONSUME(Identifier, { LABEL: 'element' }) },
+      { ALT: () => this.CONSUME(IdentifierLike, { LABEL: 'element' }) },
     ])
   })
 
   // Enum declaration
   enumDeclaration = this.RULE('enumDeclaration', () => {
     this.CONSUME(Enum)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.CONSUME(LBrace)
     this.MANY(() => {
       this.SUBRULE(this.enumValue)
@@ -366,7 +385,7 @@ export class Parser extends CstParser {
 
   // Enum value
   enumValue = this.RULE('enumValue', () => {
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.MANY(() => {
       this.SUBRULE(this.fieldAttribute) // Enum values can have attributes
     })
