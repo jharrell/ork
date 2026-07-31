@@ -61,6 +61,8 @@ type CstNodeArray = CstNode[]
 
 const DEFAULT_POSITION = { line: 1, column: 1, offset: 0 }
 
+export const UNSUPPORTED_TYPE = 'Unsupported'
+
 function isToken(element: CstElement): element is IToken {
   return 'image' in element
 }
@@ -275,7 +277,7 @@ export class Parser extends CstParser {
   // Field declaration
   field = this.RULE('field', () => {
     this.CONSUME(IdentifierLike, { LABEL: 'name' })
-    this.CONSUME2(IdentifierLike, { LABEL: 'type' })
+    this.SUBRULE(this.fieldTypeRef)
 
     // Optional field modifiers
     this.OPTION(() => {
@@ -295,6 +297,23 @@ export class Parser extends CstParser {
     this.MANY(() => {
       this.SUBRULE(this.fieldAttribute)
     })
+  })
+
+  // Field type: a plain type name or Unsupported("db type")
+  fieldTypeRef = this.RULE('fieldTypeRef', () => {
+    this.OR([
+      {
+        // Gated so that other names followed by "(" stay syntax errors.
+        GATE: () => this.LA(1).image === UNSUPPORTED_TYPE && this.LA(2).tokenType === LParen,
+        ALT: () => {
+          this.CONSUME(IdentifierLike, { LABEL: 'name' })
+          this.CONSUME(LParen)
+          this.CONSUME(StringLiteral, { LABEL: 'unsupportedType' })
+          this.CONSUME(RParen)
+        },
+      },
+      { ALT: () => this.CONSUME2(IdentifierLike, { LABEL: 'name' }) },
+    ])
   })
 
   // Field attribute (@id, @unique, @db.VarChar, etc.)
@@ -537,7 +556,8 @@ export class SchemaVisitor implements ICstVisitor<unknown, unknown> {
   field(node: CstNode): FieldAST {
     const children = node.children
     const name = getTokenImage(children, 'name')
-    const fieldType = getTokenImage(children, 'type') as FieldType
+    const typeRefNode = getNodes(children, 'fieldTypeRef')[0]
+    const typeRef = typeRefNode ? this.fieldTypeRef(typeRefNode) : { name: '' }
     const isOptional = getTokens(children, 'Question').length > 0
     const isList = getTokens(children, 'LBracket').length > 0
     const attributes = getNodes(children, 'fieldAttribute').map((child) => this.fieldAttribute(child))
@@ -546,10 +566,20 @@ export class SchemaVisitor implements ICstVisitor<unknown, unknown> {
       type: 'Field',
       span: this.getSpan(node),
       name,
-      fieldType,
+      fieldType: typeRef.name,
       isOptional,
       isList,
       attributes,
+      ...(typeRef.unsupportedType === undefined ? {} : { unsupportedType: typeRef.unsupportedType }),
+    }
+  }
+
+  fieldTypeRef(node: CstNode): { name: FieldType; unsupportedType?: string } {
+    const children = node.children
+    const unsupportedType = getTokens(children, 'unsupportedType')[0]
+    return {
+      name: getTokenImage(children, 'name'),
+      unsupportedType: unsupportedType ? parseStringLiteral(unsupportedType.image) : undefined,
     }
   }
 

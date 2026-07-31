@@ -365,6 +365,46 @@ describe('Schema Parser Integration Tests', () => {
     })
   })
 
+  describe('Unsupported Field Types', () => {
+    test('should parse Unsupported("...") fields and mark them in the AST', () => {
+      const schema = `
+        model Place {
+          id       Int                       @id
+          location Unsupported("geometry(Point, 4326)")
+          area     Unsupported("polygon")?
+          shapes   Unsupported("polygon")[]
+          name     String
+        }
+      `
+
+      const result = parseSchema(schema)
+
+      expect(result.errors).toHaveLength(0)
+
+      const place = result.ast.models[0]
+      expect(place.fields).toHaveLength(5)
+      expect(place.fields[1]).toMatchObject({
+        name: 'location',
+        fieldType: 'Unsupported',
+        unsupportedType: 'geometry(Point, 4326)',
+        isOptional: false,
+        isList: false,
+      })
+      expect(place.fields[2]).toMatchObject({ unsupportedType: 'polygon', isOptional: true })
+      expect(place.fields[3]).toMatchObject({ unsupportedType: 'polygon', isList: true })
+      expect(place.fields[4].unsupportedType).toBeUndefined()
+    })
+
+    test('should reject other type names followed by an argument list', () => {
+      const schema = ['model Place {', '  id       Int @id', '  location Geometry("point")', '}'].join('\n')
+
+      const result = parseSchema(schema)
+
+      expect(result.errors.length).toBeGreaterThan(0)
+      expect(result.errors[0].span.start).toMatchObject({ line: 3, column: 20 })
+    })
+  })
+
   describe('Enum Block Attributes', () => {
     test('should parse @@map and @@schema inside enum bodies', () => {
       const schema = `

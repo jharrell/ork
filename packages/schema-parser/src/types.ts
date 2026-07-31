@@ -70,6 +70,8 @@ export interface FieldAST extends ASTNode {
   isOptional: boolean
   isList: boolean
   attributes: AttributeAST[]
+  /** Raw database type from `Unsupported("...")`; set only for such fields, which generators cannot map. */
+  unsupportedType?: string
 }
 
 export interface EnumAST extends ASTNode {
