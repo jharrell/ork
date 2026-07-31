@@ -118,6 +118,16 @@ describe('SQLite client integration', () => {
     expect(filtered.map((u) => u.name)).toEqual(['Defined'])
   })
 
+  it('matches childless parents for every relation filters', async () => {
+    const childless = await testEnv.client.user.create({ data: { email: 'sqlite-childless@example.com' } })
+
+    const users = await testEnv.client.user.findMany({
+      where: { posts: { every: { title: 'no post has this title' } } },
+    })
+
+    expect(users.map((u) => u.id)).toContain(childless.id)
+  })
+
   it('round-trips a BigInt beyond 2^53 exactly', async () => {
     const big = 9007199254740993n
 

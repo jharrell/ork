@@ -1297,11 +1297,11 @@ ${includeFields}
               }
 
               if (filter.every) {
-                const existsAny = eb.exists(baseQuery())
+                // Prisma's \`every\` is vacuously true for parents with no related rows.
                 const existsNonMatching = eb.exists(
                   baseQuery().where((relEb) => relEb.not(${relatedWhereHelper}(kysely, relEb, filter.every as ${relatedModel.name}WhereInput)))
                 )
-                conditions.push(eb.and([existsAny, eb.not(existsNonMatching)]))
+                conditions.push(eb.not(existsNonMatching))
               }
 
               if (filter.none) {

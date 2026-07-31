@@ -43,14 +43,22 @@ describe('Relation Filtering', () => {
     })
 
     it('should filter users where every post is published', async () => {
-      // Expected: Bob (only has 1 published post, so "every" is satisfied)
+      // Expected: Bob (1 published post) and Charlie (no posts, so "every" is vacuously true)
       // Alice has 1 unpublished post, so should be excluded
       const users = await testEnv.client.user.findMany({
         where: { posts: { every: { published: true } } },
       })
 
-      expect(users).toHaveLength(1)
-      expect(users[0].email).toBe('bob@example.com')
+      expect(users.map((u) => u.email).sort()).toEqual(['bob@example.com', 'charlie@example.com'])
+    })
+
+    it('should match childless parents for every, even with an impossible condition', async () => {
+      // Prisma's `every` is vacuously true: Charlie has no posts at all
+      const users = await testEnv.client.user.findMany({
+        where: { posts: { every: { title: 'no post has this title' } } },
+      })
+
+      expect(users.map((u) => u.email)).toEqual(['charlie@example.com'])
     })
 
     it('should filter users with no published posts', async () => {
