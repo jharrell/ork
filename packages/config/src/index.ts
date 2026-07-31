@@ -15,7 +15,7 @@
 
 // Type definitions
 export type { ConfigLoadOptions, ConfigLoadResult, KyselyResult, OrkConfig } from './types.js'
-export { OrkConfigSchema } from './types.js'
+export { DEFAULT_SCHEMA_SEARCH_PATHS, OrkConfigSchema } from './types.js'
 
 // Configuration helper
 export { defineConfig } from './define-config.js'

@@ -3,7 +3,7 @@ import { existsSync } from 'fs'
 import { basename, dirname, resolve } from 'path'
 
 import type { ConfigLoadOptions, ConfigLoadResult, OrkConfig } from './types.js'
-import { OrkConfigSchema } from './types.js'
+import { DEFAULT_SCHEMA_SEARCH_PATHS, OrkConfigSchema } from './types.js'
 
 /**
  * Supported configuration file extensions
@@ -96,16 +96,23 @@ export async function loadOrkConfig(options: ConfigLoadOptions = {}): Promise<Co
 }
 
 /**
- * Find schema file based on configuration
+ * Find schema file based on configuration.
+ * When `schema` is left at its default, search back-compat and Prisma-canonical locations
+ * instead of a single fixed path; an explicit `schema` is resolved as-is, no fallback.
  */
 export function findSchemaFile(config: OrkConfig, configDir: string): string {
-  const schemaPath = resolve(configDir, config.schema)
+  const candidates: readonly string[] =
+    config.schema === DEFAULT_SCHEMA_SEARCH_PATHS[0] ? DEFAULT_SCHEMA_SEARCH_PATHS : [config.schema]
 
-  if (!existsSync(schemaPath)) {
-    throw new Error(`Schema file not found: ${schemaPath}. Check your configuration.`)
+  for (const candidate of candidates) {
+    const schemaPath = resolve(configDir, candidate)
+    if (existsSync(schemaPath)) {
+      return schemaPath
+    }
   }
 
-  return schemaPath
+  const searched = candidates.map((candidate) => resolve(configDir, candidate))
+  throw new Error(`Schema file not found. Searched:\n${searched.join('\n')}\nCheck your configuration.`)
 }
 
 /**
