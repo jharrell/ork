@@ -83,6 +83,26 @@ describe('SQLite client integration', () => {
     expect(await testEnv.client.post.deleteMany({ where: { authorId: author.id } })).toEqual({ count: 2 })
   })
 
+  it('upserts through a non-primary-key unique field', async () => {
+    const created = await testEnv.client.user.upsert({
+      where: { email: 'sqlite-upsert@example.com' },
+      create: { email: 'sqlite-upsert@example.com', name: 'Created' },
+      update: { name: 'Updated' },
+    })
+
+    expect(created.name).toBe('Created')
+
+    const updated = await testEnv.client.user.upsert({
+      where: { email: 'sqlite-upsert@example.com' },
+      create: { email: 'sqlite-upsert@example.com', name: 'Created' },
+      update: { name: 'Updated' },
+    })
+
+    expect(updated.id).toBe(created.id)
+    expect(updated.name).toBe('Updated')
+    expect(await testEnv.client.user.count({ where: { email: 'sqlite-upsert@example.com' } })).toBe(1)
+  })
+
   it('round-trips a BigInt beyond 2^53 exactly', async () => {
     const big = 9007199254740993n
 

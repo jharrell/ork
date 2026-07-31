@@ -306,6 +306,17 @@ export class ClientGenerator {
     return field.attributes.some((attr) => attr.name === 'unique' || attr.name === 'id')
   }
 
+  /**
+   * Scalar field names usable as a unique lookup key, matching WhereUniqueInput.
+   */
+  private getUniqueFieldNames(model: ModelAST): string[] {
+    const modelNames = new Set(this.schemaAST.models.map((m) => m.name))
+
+    return model.fields
+      .filter((field) => !modelNames.has(field.fieldType) && this.isUniqueField(field))
+      .map((field) => field.name)
+  }
+
   private isAutoTimestamp(field: FieldAST): boolean {
     return field.attributes.some((attr) => {
       return attr.name === 'updatedAt' || (field.fieldType === 'DateTime' && attr.name === 'default')
@@ -882,6 +893,7 @@ ${includeFields}
     const tableName = this.getTableName(model)
     const relations = this.getModelRelations(model)
     const whereHelperName = `buildWhereExpression_${model.name}`
+    const uniqueFieldNames = this.getUniqueFieldNames(model)
 
     // Generate private relation helper methods
     const relationHelpers = this.generateRelationHelperMethods(model, relations)
@@ -964,6 +976,30 @@ ${includeFields}
       : dedent`
           return results.map(row => this.transformSelectResult(row))
         `
+
+    const whereUniqueType = `${model.name}WhereUniqueInput`
+    const uniqueFieldList = uniqueFieldNames.map((name) => `'${name}'`).join(', ')
+    const conflictResolver = uniqueFieldNames.length
+      ? dedent`
+          private resolveUpsertConflictField(where: ${whereUniqueType}): keyof ${whereUniqueType} {
+            const uniqueFields = [${uniqueFieldList}] as const
+            const field = uniqueFields.find(name => where[name] !== undefined)
+            if (!field) {
+              throw new Error('${model.name}.upsert needs one unique field in where (${uniqueFieldNames.join(', ')})')
+            }
+            return field
+          }
+        `
+      : ''
+
+    const conflictFieldSetup = uniqueFieldNames.length
+      ? dedent`
+          const conflictField = this.resolveUpsertConflictField(args.where)
+          if (createData[conflictField] === undefined) {
+            createData[conflictField] = transformWhereValue_${model.name}(conflictField, args.where[conflictField])
+          }
+        `
+      : `const conflictField = '${this.getPrimaryKeyField(model)}' as const`
 
     const findOneReturn = hasRelations
       ? dedent`
@@ -1103,11 +1139,12 @@ ${includeFields}
         async upsert(args: ${model.name}UpsertArgs): Promise<${model.name}> {
           const createData = this.prepareCreateData(args.create)
           const updateData = this.prepareUpdateData(args.update)
-          
+          ${conflictFieldSetup}
+
           const result = await this.kysely
             .insertInto('${tableName}')
             .values(createData as any)
-            .onConflict(oc => oc.column('${this.getPrimaryKeyField(model)}').doUpdateSet(updateData))
+            .onConflict(oc => oc.column(conflictField).doUpdateSet(updateData))
             .returningAll()
             .executeTakeFirstOrThrow()
           return this.transformSelectResult(result)
@@ -1139,6 +1176,8 @@ ${includeFields}
           const result = await query.executeTakeFirst() as { count: string | number | bigint } | undefined
           return Number(result?.count || 0)
         }
+
+        ${conflictResolver}
 
         private prepareCreateData(data: ${model.name}CreateInput): Record<string, unknown> {
           const prepared: Record<string, unknown> = {}

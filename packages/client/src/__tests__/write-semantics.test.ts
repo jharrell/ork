@@ -96,6 +96,53 @@ describe('Write semantics (PostgreSQL)', () => {
     })
   })
 
+  describe('upsert', () => {
+    it('should create when the unique field does not exist yet', async () => {
+      const created = await testEnv.client.user.upsert({
+        where: { email: 'upsert-new@example.com' },
+        create: { email: 'upsert-new@example.com', name: 'Created' },
+        update: { name: 'Updated' },
+      })
+
+      expect(created.name).toBe('Created')
+      expect(await testEnv.client.user.count({ where: { email: 'upsert-new@example.com' } })).toBe(1)
+    })
+
+    it('should update through a non-primary-key unique field', async () => {
+      const updated = await testEnv.client.user.upsert({
+        where: { email: 'alice@example.com' },
+        create: { email: 'alice@example.com', name: 'Should not be created' },
+        update: { name: 'Alice Upserted' },
+      })
+
+      expect(updated.id).toBe(1)
+      expect(updated.name).toBe('Alice Upserted')
+      expect(await testEnv.client.user.count({ where: { email: 'alice@example.com' } })).toBe(1)
+    })
+
+    it('should update through the primary key', async () => {
+      const updated = await testEnv.client.user.upsert({
+        where: { id: 2 },
+        create: { email: 'never-inserted@example.com' },
+        update: { name: 'Bob Upserted' },
+      })
+
+      expect(updated.email).toBe('bob@example.com')
+      expect(updated.name).toBe('Bob Upserted')
+      expect(await testEnv.client.user.count({ where: { email: 'never-inserted@example.com' } })).toBe(0)
+    })
+
+    it('should reject a where clause without a unique field', async () => {
+      await expect(
+        testEnv.client.user.upsert({
+          where: {},
+          create: { email: 'no-unique@example.com' },
+          update: { name: 'nope' },
+        }),
+      ).rejects.toThrow(/unique field/)
+    })
+  })
+
   describe('BigInt precision', () => {
     const big = 9007199254740993n
 
