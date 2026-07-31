@@ -1,77 +1,41 @@
-node_modules
+# Dependencies
+node_modules/
+.pnpm-store/
 
-yarn-error.log
-declaration
-dist
-build
-tmp
-pnpm-debug.log
-.DS_Store
-
-/target
-query-engine*
-migration-engine*
-schema-engine*
-libquery_engine*
-libquery-engine*
-query_engine-windows.dll.node
-
-*tmp.db
+# Build output
 dist/
-
+build/
+declaration/
 *.tsbuildinfo
-.prisma
-.attest
-.pnpm-store
 
-.vscode/*
-!.vscode/launch.json.default
-!.vscode/extensions.json
-coverage
+# Generated clients
+.ork/
 
+# Test and bench artifacts
+coverage/
 .eslintcache
-
-.pnpm-debug.log
-
-esm
-
-dev.db
-junit.xml
 /output.txt
-/sandbox
 
+# Local databases
+dev.db
+*tmp.db
+
+# Environment
+.env
 .envrc.local
-
-.idea/
-
-package.copy.json
-
-*.tgz
 
 # Logs
 logs
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-dev-debug.log
-# Dependency directories
-node_modules/
-# Environment variables
-.env
-# Editor directories and files
-.idea
-.vscode
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-# OS specific
 
-# Task files
-.taskmaster
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
 
-# MCP
-.cursor
-.serena
+# Local AI tooling
+.claude/
+.conductor/
+
+# Local scratch space
+/sandbox

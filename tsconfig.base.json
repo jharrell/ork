@@ -23,12 +23,10 @@
     "**/tests",
     "**/__tests__",
     "./sandbox",
-    "./eslint-local-rules",
     "**/dist",
     "**/build",
     "**/fixtures",
     "**/node_modules",
-    "**/.prisma/client",
-    "./packages/cli/preinstall"
+    "**/.ork"
   ]
 }

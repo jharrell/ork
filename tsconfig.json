@@ -1,16 +1,9 @@
 {
-  "extends": "./tsconfig.build.regular.json",
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "emitDeclarationOnly": false,
     "noEmit": true
   },
-  "include": ["./**/*", ".eslintrc.js"],
-  "exclude": [
-    "**/dist",
-    "**/build",
-    "**/fixtures",
-    "**/node_modules",
-    "**/.prisma/client",
-    "./packages/cli/preinstall"
-  ]
+  "include": ["./**/*"],
+  "exclude": ["**/dist", "**/build", "**/fixtures", "**/node_modules", "./sandbox", "**/.ork"]
 }
