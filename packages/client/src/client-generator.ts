@@ -1071,11 +1071,15 @@ ${includeFields}
 
         async createMany(args: ${model.name}CreateManyArgs): Promise<{ count: number }> {
           const dataArray = args.data.map(item => this.prepareCreateData(item))
-          await this.kysely
+          if (dataArray.length === 0) {
+            return { count: 0 }
+          }
+
+          const result = await this.kysely
             .insertInto('${tableName}')
             .values(dataArray as any)
-            .execute()
-          return { count: dataArray.length }
+            .executeTakeFirst()
+          return { count: Number(result.numInsertedOrUpdatedRows ?? 0) }
         }
 
         async update(args: ${model.name}UpdateArgs): Promise<${model.name}> {
@@ -1092,8 +1096,8 @@ ${includeFields}
           
           query = query.where(eb => ${whereHelperName}(this.kysely, eb, args?.where ?? {}))
           
-          const result = await query.execute()
-          return { count: Array.isArray(result) ? result.length : Number((result as any).numUpdatedRows || 0) }
+          const result = await query.executeTakeFirst()
+          return { count: Number(result.numUpdatedRows) }
         }
 
         async upsert(args: ${model.name}UpsertArgs): Promise<${model.name}> {
@@ -1121,8 +1125,8 @@ ${includeFields}
           
           query = query.where(eb => ${whereHelperName}(this.kysely, eb, args?.where ?? {}))
           
-          const result = await query.execute()
-          return { count: Array.isArray(result) ? result.length : Number((result as any).numDeletedRows || 0) }
+          const result = await query.executeTakeFirst()
+          return { count: Number(result.numDeletedRows) }
         }
 
         async count(args?: ${model.name}CountArgs): Promise<number> {

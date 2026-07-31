@@ -45,6 +45,44 @@ describe('SQLite client integration', () => {
     expect(afterDelete).toBeNull()
   })
 
+  it('reports real affected-row counts for createMany, updateMany and deleteMany', async () => {
+    const author = await testEnv.client.user.create({ data: { email: 'sqlite-counts@example.com' } })
+
+    expect(await testEnv.client.post.createMany({ data: [] })).toEqual({ count: 0 })
+    expect(await testEnv.client.post.createMany({ data: [{ title: 'one', authorId: author.id }] })).toEqual({
+      count: 1,
+    })
+    expect(
+      await testEnv.client.post.createMany({
+        data: [
+          { title: 'two', authorId: author.id },
+          { title: 'three', authorId: author.id },
+        ],
+      }),
+    ).toEqual({ count: 2 })
+
+    expect(
+      await testEnv.client.post.updateMany({
+        where: { authorId: author.id, title: 'nothing matches' },
+        data: { published: true },
+      }),
+    ).toEqual({ count: 0 })
+    expect(
+      await testEnv.client.post.updateMany({
+        where: { authorId: author.id, title: 'one' },
+        data: { published: true },
+      }),
+    ).toEqual({ count: 1 })
+    expect(await testEnv.client.post.updateMany({ where: { authorId: author.id }, data: { content: 'bulk' } })).toEqual(
+      { count: 3 },
+    )
+
+    expect(await testEnv.client.post.deleteMany({ where: { authorId: author.id, title: 'one' } })).toEqual({
+      count: 1,
+    })
+    expect(await testEnv.client.post.deleteMany({ where: { authorId: author.id } })).toEqual({ count: 2 })
+  })
+
   it('round-trips a BigInt beyond 2^53 exactly', async () => {
     const big = 9007199254740993n
 
