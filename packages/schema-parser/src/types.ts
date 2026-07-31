@@ -76,6 +76,8 @@ export interface EnumAST extends ASTNode {
   type: 'Enum'
   name: string
   values: EnumValueAST[]
+  /** Block attributes (`@@map`, `@@schema`); always set by the parser. */
+  attributes?: AttributeAST[]
 }
 
 export interface EnumValueAST extends ASTNode {

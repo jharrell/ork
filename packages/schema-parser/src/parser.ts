@@ -378,7 +378,7 @@ export class Parser extends CstParser {
     this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.CONSUME(LBrace)
     this.MANY(() => {
-      this.SUBRULE(this.enumValue)
+      this.OR([{ ALT: () => this.SUBRULE(this.enumValue) }, { ALT: () => this.SUBRULE(this.modelAttribute) }])
     })
     this.CONSUME(RBrace)
   })
@@ -605,12 +605,14 @@ export class SchemaVisitor implements ICstVisitor<unknown, unknown> {
     const children = node.children
     const name = getTokenImage(children, 'name')
     const values = getNodes(children, 'enumValue').map((child) => this.enumValue(child))
+    const attributes = getNodes(children, 'modelAttribute').map((child) => this.modelAttribute(child))
 
     return {
       type: 'Enum',
       span: this.getSpan(node),
       name,
       values,
+      attributes,
     }
   }
 

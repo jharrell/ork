@@ -365,6 +365,44 @@ describe('Schema Parser Integration Tests', () => {
     })
   })
 
+  describe('Enum Block Attributes', () => {
+    test('should parse @@map and @@schema inside enum bodies', () => {
+      const schema = `
+        enum UserRole {
+          ADMIN  @map("admin")
+          MEMBER @map("member")
+
+          @@map("user_role")
+          @@schema("auth")
+        }
+
+        model User {
+          id   Int      @id
+          role UserRole
+        }
+      `
+
+      const result = parseSchema(schema)
+
+      expect(result.errors).toHaveLength(0)
+      expect(result.ast.models).toHaveLength(1)
+
+      const role = result.ast.enums[0]
+      expect(role.values.map((v) => v.name)).toEqual(['ADMIN', 'MEMBER'])
+      expect(role.attributes).toEqual([
+        expect.objectContaining({ name: 'map', args: [expect.objectContaining({ value: 'user_role' })] }),
+        expect.objectContaining({ name: 'schema', args: [expect.objectContaining({ value: 'auth' })] }),
+      ])
+    })
+
+    test('should report an empty attribute list for plain enums', () => {
+      const result = parseSchema('enum Status { ACTIVE }')
+
+      expect(result.errors).toHaveLength(0)
+      expect(result.ast.enums[0].attributes).toEqual([])
+    })
+  })
+
   describe('Contextual Keywords', () => {
     test('should parse the canonical Auth.js Account model', () => {
       const schema = `
