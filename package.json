@@ -10,8 +10,6 @@
     "build": "pnpm -r build",
     "watch": "pnpm -r run dev && WATCH=true pnpm -r --parallel --stream run dev",
     "demo:postgres": "pnpm --filter @ork-orm/example-basic demo",
-    "publish-dryrun": "tsx scripts/publish.ts --dry-run",
-    "publish": "tsx scripts/publish.ts",
     "test": "pnpm -r test",
     "preinstall": "node ./scripts/only-allow-pnpm.js pnpm",
     "precommit": "lint-staged",
@@ -34,12 +32,10 @@
     "eslint-plugin-jest": "28.11.0",
     "eslint-plugin-prettier": "4.2.1",
     "eslint-plugin-simple-import-sort": "12.1.1",
-    "execa": "5.1.1",
     "globals": "16.0.0",
     "husky": "9.1.7",
     "lint-staged": "15.4.3",
     "prettier": "2.8.8",
-    "tsx": "4.19.3",
     "typescript": "5.4.5"
   },
   "pnpm": {
