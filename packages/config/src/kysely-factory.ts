@@ -11,8 +11,8 @@ export async function createKyselyFromConfig(options: ConfigLoadOptions = {}): P
   // Load configuration with priority resolution
   const { config, configPath, configDir } = await loadOrkConfig(options)
 
-  // Create dialect from config
-  const dialect = await createKyselyDialect(config)
+  // Create dialect from config, anchoring relative sqlite `file:` URLs to the config dir
+  const dialect = await createKyselyDialect(config, configDir)
 
   // Create Kysely instance
   const { Kysely } = await import('kysely')

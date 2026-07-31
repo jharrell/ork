@@ -1,13 +1,15 @@
 import type { Dialect } from 'kysely'
+import { resolve } from 'path'
 
 import { PROVIDER_METADATA } from './constants.js'
 import type { OrkConfig } from './types.js'
 
 /**
- * Create Kysely dialect instance from Ork configuration
- * This centralizes all provider-specific dialect creation logic
+ * Create Kysely dialect instance from Ork configuration.
+ * `baseDir` anchors relative sqlite `file:` URLs (defaults to cwd) — pass the config
+ * file's directory so `file:./dev.db` resolves next to the config, not the caller's cwd.
  */
-export async function createKyselyDialect(config: OrkConfig): Promise<Dialect> {
+export async function createKyselyDialect(config: OrkConfig, baseDir?: string): Promise<Dialect> {
   const { provider, url } = config.datasource
 
   switch (provider) {
@@ -61,8 +63,10 @@ export async function createKyselyDialect(config: OrkConfig): Promise<Dialect> {
         const Database = await import('better-sqlite3').then((m) => m.default)
 
         const dbPath = url.replace('file:', '')
+        // ':memory:' isn't a filesystem path — resolving it would create a literal file.
+        const resolvedPath = dbPath === ':memory:' ? dbPath : resolve(baseDir ?? process.cwd(), dbPath)
         return new SqliteDialect({
-          database: new Database(dbPath),
+          database: new Database(resolvedPath),
         })
       } catch (importError) {
         const metadata = PROVIDER_METADATA.sqlite
