@@ -64,14 +64,14 @@ export class InitCommand extends BaseCommand {
     }
 
     // Generate configuration file
-    await this.generateConfigFile(configPath, answers)
+    this.generateConfigFile(configPath, answers)
 
     // Ensure type helper dependency for config validation
-    await this.ensureConfigDependency(cwd)
+    this.ensureConfigDependency(cwd)
 
     // Generate schema file
     if (!options.skipSchema) {
-      await this.generateSchemaFile(cwd, answers)
+      this.generateSchemaFile(cwd, answers)
     }
 
     const packageJson = this.loadPackageJson(cwd)
@@ -148,23 +148,18 @@ export class InitCommand extends BaseCommand {
       }
 
       // Use enhanced auto-detection with better error handling
-      try {
-        const { kysely, config } = await cliCreateKyselyFromUrl(url)
+      const { kysely, config } = await cliCreateKyselyFromUrl(url)
 
-        // Clean up test connection
-        await kysely.destroy()
+      // Clean up test connection
+      await kysely.destroy()
 
-        const provider = config.datasource.provider
-        logger.success(`✓ Auto-detected provider: ${provider}`)
-        logger.success(`✓ Connection verified successfully`)
+      const provider = config.datasource.provider
+      logger.success(`✓ Auto-detected provider: ${provider}`)
+      logger.success(`✓ Connection verified successfully`)
 
-        return {
-          provider,
-          url,
-        }
-      } catch (error) {
-        // Enhanced error handler already provides good error messages
-        throw error
+      return {
+        provider,
+        url,
       }
     }
 
@@ -182,13 +177,13 @@ export class InitCommand extends BaseCommand {
     }
   }
 
-  private async generateConfigFile(configPath: string, config: { provider: string; url: string }) {
+  private generateConfigFile(configPath: string, config: { provider: string; url: string }) {
     const configContent = generateConfigContent(config.provider, config.url)
     writeFileSync(configPath, configContent, 'utf8')
     logger.success('Created Ork configuration')
   }
 
-  private async generateSchemaFile(cwd: string, config: { provider: string; url: string }) {
+  private generateSchemaFile(cwd: string, config: { provider: string; url: string }) {
     const schemaPath = resolve(cwd, 'schema.prisma')
 
     if (existsSync(schemaPath)) {
@@ -231,7 +226,7 @@ export class InitCommand extends BaseCommand {
     }
   }
 
-  private async ensureConfigDependency(cwd: string): Promise<void> {
+  private ensureConfigDependency(cwd: string): void {
     const packagePath = resolve(cwd, 'package.json')
 
     if (!existsSync(packagePath)) {

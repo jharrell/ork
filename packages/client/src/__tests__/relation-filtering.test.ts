@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { clearTestData, SeedData, seedTestData } from './helpers/seed'
+import { seedTestData } from './helpers/seed'
 import { setupTestDatabase, TestEnvironment } from './helpers/test-container'
 
 /**
@@ -20,11 +20,10 @@ import { setupTestDatabase, TestEnvironment } from './helpers/test-container'
  */
 describe('Relation Filtering', () => {
   let testEnv: TestEnvironment
-  let seedData: SeedData
 
   beforeAll(async () => {
     testEnv = await setupTestDatabase()
-    seedData = await seedTestData(testEnv.kysely)
+    await seedTestData(testEnv.kysely)
   })
 
   afterAll(async () => {

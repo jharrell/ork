@@ -9,10 +9,8 @@ import { describe, expect, it } from 'vitest'
 import {
   createFieldTranslator,
   detectDialect,
-  FieldAnalyzer,
   generators,
   ModelTransformationRegistry,
-  transformationRegistry,
 } from '../index.js'
 
 describe('Complete FieldTranslator Integration', () => {
@@ -180,8 +178,8 @@ describe('Complete FieldTranslator Integration', () => {
       const translator = createFieldTranslator('sqlite')
       const metadata = translator.analyzeModel(mockUserModel)
 
-      for (const [fieldName, fieldData] of metadata.fields) {
-        for (const [operation, transform] of fieldData.transformations) {
+      for (const [, fieldData] of metadata.fields) {
+        for (const [, transform] of fieldData.transformations) {
           expect(transform.performance).toBeDefined()
           expect(transform.performance.complexity).toMatch(/simple|moderate|complex/)
           expect(typeof transform.performance.inlinable).toBe('boolean')
@@ -243,8 +241,8 @@ describe('Complete FieldTranslator Integration', () => {
       const translator = createFieldTranslator('postgresql')
       const metadata = translator.analyzeModel(mockUserModel)
 
-      for (const [fieldName, fieldData] of metadata.fields) {
-        for (const [operation, transform] of fieldData.transformations) {
+      for (const [, fieldData] of metadata.fields) {
+        for (const [, transform] of fieldData.transformations) {
           // Most basic transformations should require zero imports
           if (transform.performance.complexity === 'simple') {
             expect(transform.imports).toEqual([])

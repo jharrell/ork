@@ -14,7 +14,6 @@ import type {
   FieldTransformContext,
   GeneratedTransformation,
   TransformationOperation,
-  TransformationPerformance,
 } from '../types.js'
 import { UnsupportedFieldTypeError } from '../types.js'
 
