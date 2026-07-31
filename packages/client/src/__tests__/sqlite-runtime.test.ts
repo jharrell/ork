@@ -103,6 +103,21 @@ describe('SQLite client integration', () => {
     expect(await testEnv.client.user.count({ where: { email: 'sqlite-upsert@example.com' } })).toBe(1)
   })
 
+  it('ignores undefined values in where clauses', async () => {
+    await testEnv.client.user.create({ data: { email: 'sqlite-undefined@example.com', name: 'Defined' } })
+
+    const all = await testEnv.client.user.findMany()
+    const withUndefined = await testEnv.client.user.findMany({ where: { name: undefined, id: undefined } })
+
+    expect(withUndefined).toHaveLength(all.length)
+
+    const filtered = await testEnv.client.user.findMany({
+      where: { email: { equals: 'sqlite-undefined@example.com', contains: undefined } },
+    })
+
+    expect(filtered.map((u) => u.name)).toEqual(['Defined'])
+  })
+
   it('round-trips a BigInt beyond 2^53 exactly', async () => {
     const big = 9007199254740993n
 

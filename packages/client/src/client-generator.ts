@@ -1036,6 +1036,10 @@ ${includeFields}
             const orderByArray = Array.isArray(args.orderBy) ? args.orderBy : [args.orderBy]
             for (const orderByObj of orderByArray) {
               Object.entries(orderByObj).forEach(([field, direction]) => {
+                if (direction === undefined) {
+                  return
+                }
+
                 query = query.orderBy(field as any, direction as 'asc' | 'desc')
               })
             }
@@ -1082,6 +1086,10 @@ ${includeFields}
             const orderByArray = Array.isArray(args.orderBy) ? args.orderBy : [args.orderBy]
             for (const orderByObj of orderByArray) {
               Object.entries(orderByObj).forEach(([field, direction]) => {
+                if (direction === undefined) {
+                  return
+                }
+
                 query = query.orderBy(field as any, direction as 'asc' | 'desc')
               })
             }
@@ -1392,6 +1400,10 @@ ${includeFields}
           const conditions: Expression<SqlBool>[] = []
 
           for (const [operator, operatorValue] of Object.entries(value)) {
+            if (operatorValue === undefined) {
+              continue
+            }
+
             switch (operator) {
               case 'equals':
                 if (operatorValue === null) {
@@ -1468,6 +1480,10 @@ ${includeFields}
         const expressions: Expression<SqlBool>[] = []
 
         for (const [field, value] of Object.entries(where)) {
+          if (value === undefined) {
+            continue
+          }
+
           if (field === 'AND') {
             expressions.push(eb.and((value as ${modelName}WhereInput[]).map(cond => ${buildWhereName}(kysely, eb, cond))))
           } else if (field === 'OR') {

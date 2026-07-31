@@ -143,6 +143,47 @@ describe('Write semantics (PostgreSQL)', () => {
     })
   })
 
+  describe('undefined filter values', () => {
+    it('should ignore undefined scalar filters instead of comparing against them', async () => {
+      const all = await testEnv.client.user.findMany()
+      const withUndefined = await testEnv.client.user.findMany({
+        where: { name: undefined, id: undefined, email: undefined },
+      })
+
+      expect(withUndefined).toHaveLength(all.length)
+    })
+
+    it('should ignore undefined operator values inside a filter object', async () => {
+      const users = await testEnv.client.user.findMany({
+        where: { email: { equals: 'alice@example.com', contains: undefined, in: undefined } },
+      })
+
+      expect(users.map((u) => u.email)).toEqual(['alice@example.com'])
+    })
+
+    it('should ignore undefined orderBy directions', async () => {
+      const users = await testEnv.client.user.findMany({
+        orderBy: { email: undefined, id: 'asc' },
+      })
+
+      const ids = users.map((u) => u.id)
+      expect(ids.length).toBeGreaterThan(1)
+      expect(ids).toEqual([...ids].sort((a, b) => a - b))
+    })
+
+    it('should ignore undefined values in relation filters', async () => {
+      const baseline = await testEnv.client.user.findMany({
+        where: { posts: { some: { published: true } } },
+      })
+      const withUndefined = await testEnv.client.user.findMany({
+        where: { posts: { some: { published: true, title: undefined } } },
+      })
+
+      expect(baseline.length).toBeGreaterThan(0)
+      expect(withUndefined.map((u) => u.email)).toEqual(baseline.map((u) => u.email))
+    })
+  })
+
   describe('BigInt precision', () => {
     const big = 9007199254740993n
 
