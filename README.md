@@ -1,5 +1,7 @@
 # Ork
 
+[![CI](https://github.com/jharrell/ork/actions/workflows/ci.yml/badge.svg)](https://github.com/jharrell/ork/actions/workflows/ci.yml)
+
 Ork is a TypeScript-native, Prisma-like ORM built on the [Kysely](https://kysely.dev) query builder.
 
 > [!CAUTION]
