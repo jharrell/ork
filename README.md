@@ -1,64 +1,66 @@
 # Ork
 
-Ork is a TypeScript-native, Prisma-like ORM built on the Kysely query builder.
+Ork is a TypeScript-native, Prisma-like ORM built on the [Kysely](https://kysely.dev) query builder.
 
 > [!CAUTION]
->
-> **Should I use Ork?**
->
-> No, probably not. Ork:
->
-> 1. Involved a lot of LLM-generated code
-> 2. Is written by a person who has no idea what they're doing
-> 3. Isn't stable or mature
->
-> Despite these concerns, if you're still willing to try out the project, thank you very much! I'll do my best to address feedback and concerns.
+> Ork is **early alpha** software. It is not ready for production use, and plenty of
+> Prisma features are missing or incomplete — the [status table](#status) below is the
+> honest map of what works today. If you try it anyway: thank you! Bug reports and
+> feedback are very welcome.
 
 ## Vision
 
 Ork wants to be your ORM du jour. We want to get there by offering the following:
 
 1. A way to define your database schema in a clear and concise way.
-2. A way to generate a full-typed, high-level client SDK so you can work with your data quickly and easily.
+2. A way to generate a fully-typed, high-level client SDK so you can work with your data quickly and easily.
 3. A way to seamlessly migrate from one database schema to another.
 
 How we get there is with the following tools:
 
-1. A superset of the Prisma schema language that also allows you to define constraints, views, procedures, and more.
+1. The Prisma schema language you already know, with plans for a superset that adds constraints, views, procedures, and more.
 2. A generated client that combines a Prisma-style API with the ability to use Kysely queries directly.
 3. A migration engine that generates reasonable up and down migrations for a given schema change.
-4. The ability to do any or all of the above a la carte via development plugins, typescript functions, and a CLI.
+4. The ability to do any or all of the above a la carte via development plugins, TypeScript functions, and a CLI.
+
+## Relationship to Prisma
+
+Ork is **not** affiliated with Prisma, and it is not a code fork: it is a from-scratch
+TypeScript reimplementation of the Prisma developer experience — the `.prisma` schema
+language and the client API shape — with query execution delegated to Kysely. There are
+no Rust engines, no WASM binaries, and no hidden layers: what the generator emits is
+plain TypeScript you can read and debug.
 
 ## Strategic Pillars
 
 While right now Ork is a dinky one-man show, we have a clear vision of a mature, community-managed project. Here are some of the tenets we want to stand by:
 
 - Whenever possible, a project using Prisma could switch to Ork with minimal code churn.
-- Ork is a typescript project, from top to bottom.
+- Ork is a TypeScript project, from top to bottom.
 - Ork should get out of your way and integrate with modern tooling and workflows.
 - Ork should consider and prioritize community-driven contributions.
+- Ork is developed with heavy AI assistance under human review; claims in these docs are
+  kept honest against a real-database test suite, and known gaps are documented rather
+  than papered over.
 
-## What You Get
+## Status
 
-- **Prisma schema compatibility**: Use your existing Prisma schema files without modification
-- **Type-safe client API**: Generated Prisma-like client with CRUD operations that map to Kysely queries
-- **Relation loading**: Support for `include` to fetch related records with proper typing
-- **Relation filtering**: `where` filters across relations (`some`, `every`, `none`, `is`, `isNot`)
-- **Kysely integration**: Direct access via `$kysely` for advanced queries
-- **Programmatic migrations**: `diff()` and `apply()` APIs that work through Kysely
-- **Modern CLI**: `ork init`, `ork generate`, and `ork migrate` commands
-- **Modern build tool integrations**: `unplugin-ork` with hot reloading
-- **Multi-database support**: PostgreSQL, MySQL, and SQLite today, with a clear path to additional dialects
+PostgreSQL and SQLite are the priority dialects. The table below reflects the current
+alpha honestly — including known bugs.
 
-## Project Status
-
-The project's current focus is an alpha version that includes schema parsing, client generation, migrations, and Kysely-backed execution for PostgreSQL, MySQL, and SQLite queries.
-
-Future effort will be put towards:
-
-1. A beta release
-2. As much parity with Prisma ORM as is possible (incl. DB support, etc)
-3. Feature differentiation (Prisma Schema Language superset)
+| Feature                                                      | Status                                                    |
+| ------------------------------------------------------------ | --------------------------------------------------------- |
+| `.prisma` schema parsing                                     | ✅ Works for mainstream schemas (some grammar gaps known) |
+| CRUD (`findMany`, `create`, `update`, `delete`, `count`, …)  | ✅ Works on PostgreSQL and SQLite                         |
+| `where` filters, incl. relation filters (`some`/`none`/`is`) | ✅ Works                                                  |
+| Interactive `$transaction(async (tx) => …)`                  | ✅ Works                                                  |
+| `$kysely` escape hatch (transaction-aware)                   | ✅ Works                                                  |
+| `include` (single level)                                     | ⚠️ PostgreSQL only; currently broken on SQLite            |
+| Migrations (`diff` + `apply`)                                | ⚠️ Solid on SQLite; PostgreSQL has known re-diff bugs     |
+| `select`, nested writes, multi-level `include`               | ❌ Not yet implemented                                    |
+| Enums, `@map`/`@@map`, composite keys, implicit many-to-many | ❌ Not yet supported end to end                           |
+| Aggregations, `groupBy`                                      | ❌ Planned                                                |
+| MySQL                                                        | ❌ Scaffolding exists, untested — do not use              |
 
 ## Key Packages
 
@@ -67,55 +69,56 @@ Future effort will be put towards:
 - `packages/field-translator`: Database-specific field transformation for code generation.
 - `packages/migrate`: Programmatic migration engine powered by Kysely.
 - `packages/config`: Configuration discovery and dialect wiring.
-- `packages/unplugin`: Build-tool integration (Vite, Webpack, Rollup, esbuild) that emits virtual `.ork/types` modules.
+- `packages/unplugin`: Build-tool integration that watches your schema and regenerates the client.
 - `packages/cli`: CLI (`ork`) that orchestrates config, generation, and migrations.
 
 Core libraries publish under `@ork-orm/*`, with `ork` (CLI) and `unplugin-ork` as unscoped packages.
 
 ## Getting Started (Alpha)
 
-Ork supports two workflows:
-
-1. **unplugin (recommended)**: auto-generates the client and keeps `.ork/types` in sync.
-2. **CLI-only (Prisma-style)**: run `ork dev` for a unified generate+migrate loop, or run commands manually.
-
-### 1) Vite + unplugin (recommended)
+The CLI workflow is the most battle-tested path today.
 
 ```bash
-pnpm add -D ork unplugin-ork
+pnpm add -D ork @ork-orm/client
 npx ork init
+
 export DATABASE_URL="file:./dev.db"
-pnpm dev
+
+# Generate the client, apply schema changes, or run the combined dev loop
+npx ork generate
+npx ork migrate dev
+npx ork dev
 ```
 
-> [!NOTE] > `ork init` will detect Vite and can auto-patch your `vite.config` to add this plugin. It can also offer to install recommended dependencies.
+Then import the generated client from `.ork/`:
 
-Add the plugin in `vite.config.ts`:
+```ts
+import { OrkClient } from './.ork/index.js'
+import { PostgresDialect } from 'kysely'
+import pg from 'pg'
+
+const client = new OrkClient(new PostgresDialect({ pool: new pg.Pool({ connectionString: process.env.DATABASE_URL }) }))
+
+const users = await client.user.findMany({ where: { posts: { some: { published: true } } } })
+```
+
+### Vite + unplugin (experimental)
+
+`unplugin-ork` watches `schema.prisma` and regenerates the on-disk `.ork/` client as you
+work. `ork init` can detect Vite and offer to patch your `vite.config` for you.
 
 ```ts
 import { defineConfig } from 'vite'
 import ork from 'unplugin-ork/vite'
 
 export default defineConfig({
-  plugins: [
-    ork({
-      autoGenerateClient: true,
-      autoMigrate: true,
-    }),
-  ],
+  plugins: [ork()],
 })
 ```
 
-### 2) CLI-only
-
-```bash
-# Initialize config + schema
-npx ork init
-
-# Run the dev loop (generate + migrate on schema changes)
-export DATABASE_URL="postgresql://user:pass@localhost:5432/db"
-npx ork dev
-```
+> [!NOTE]
+> The plugin's virtual-module imports (`.ork/types`) are experimental and not yet
+> visible to `tsc`. Import from the generated `.ork/` directory on disk instead.
 
 ## Development Workflow
 
@@ -123,7 +126,7 @@ npx ork dev
 2. Use `pnpm --filter @ork-orm/schema-parser test` to exercise parsing changes.
 3. Run `pnpm --filter @ork-orm/client build` (or `pnpm watch`) to regenerate the client runtime.
 4. Use the CLI for init/generate/migrate flows.
-5. Launch the demo project (Vite + unplugin) to validate type generation and CRUD operations.
+5. Launch the demo project to validate type generation and CRUD operations: `pnpm demo:postgres`.
 
 ## Contributing
 
@@ -131,7 +134,7 @@ Ork is TypeScript-first. Follow our workspace conventions:
 
 - Node.js ≥ 20, pnpm ≥ 10.
 - `pnpm lint`, `pnpm test`, and `pnpm build` at the workspace root before submitting changes.
-- Database-backed tests use Testcontainers (no local `/docker` directory required).
+- Database-backed tests use Testcontainers (Docker required, nothing else to set up).
 
 ## Special Thanks
 

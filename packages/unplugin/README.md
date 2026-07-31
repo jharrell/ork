@@ -1,18 +1,23 @@
 # unplugin-ork
 
-Provides virtual modules for clean `.ork` imports. This is the recommended way to use Ork.
+Build-tool integration for Ork: watches your `schema.prisma` and regenerates the
+`.ork/` client on change, so your types stay in sync while you work.
+
+> [!NOTE]
+> The plugin's virtual-module imports (`.ork/types`) are experimental and are not yet
+> visible to `tsc`. Import from the generated `.ork/` directory on disk instead — the
+> plugin keeps it up to date.
 
 ## Features
 
-- Clean `.ork` imports via virtual modules.
-- Instant type updates and HMR during development.
-- Works with Vite, Webpack, Rollup, and esbuild
-- Works out of the box with sensible defaults
+- Regenerates the on-disk `.ork/` client whenever your schema changes.
+- Optional auto-migration on schema change (off by default; `safe` mode gates destructive DDL).
+- Works with Vite, Webpack, Rollup, and esbuild via [unplugin](https://github.com/unjs/unplugin).
 
 ## Installation
 
 ```bash
-npm install unplugin-ork
+npm install -D unplugin-ork
 ```
 
 ## Usage
@@ -37,10 +42,10 @@ export default defineConfig({
 ### Webpack
 
 ```js
-// webpack.config.js
-const OrkPlugin = require('unplugin-ork/webpack')
+// webpack.config.mjs (the Ork packages are ESM-only)
+import OrkPlugin from 'unplugin-ork/webpack'
 
-module.exports = {
+export default {
   plugins: [
     OrkPlugin({
       schema: './schema.prisma',
@@ -82,28 +87,20 @@ build({
 
 ## Client Usage
 
-Once the plugin is configured, you can use clean imports in your application:
+The plugin writes the generated client to `.ork/` in your project. Import it from disk:
 
 ```typescript
-import { OrkClient } from '@ork-orm/client'
 import { PostgresDialect } from 'kysely'
+import pg from 'pg'
 
-// Types are automatically available via virtual modules
-const client = new OrkClient(new PostgresDialect({ connectionString: process.env.DATABASE_URL! }))
+import { OrkClient } from './.ork/index.js'
 
-// Fully typed CRUD operations
+const client = new OrkClient(new PostgresDialect({ pool: new pg.Pool({ connectionString: process.env.DATABASE_URL }) }))
+
 const user = await client.user.findUnique({
   where: { id: 1 },
 })
 ```
-
-## How It Works
-
-1. Monitors your `schema.prisma` file for changes via watch.
-2. Parses your schema and generates TypeScript interfaces.
-3. Creates virtual `.ork/types` module during build.
-4. Automatically augments OrkClient with your types.
-5. Provides instant updates during development via HMR.
 
 ## Options
 
@@ -150,34 +147,6 @@ interface OrkPluginOptions {
   root?: string
 }
 ```
-
-## Migrate an Ork project to use `unplugin-ork`
-
-**Step 1**: Install the plugin
-
-```bash
-npm install unplugin-ork
-```
-
-**Step 2**: Add to your bundler config (see examples above)
-
-**Step 3**: Remove manual generation scripts
-
-- Remove custom file watchers
-- Remove manual `ork generate` calls from build scripts
-- Clean up any custom TypeScript compilation steps
-
-### Why the Plugin is Recommended
-
-| Feature           | Manual Workflow          | Plugin                   |
-| ----------------- | ------------------------ | ------------------------ |
-| Setup complexity  | High - many manual steps | Low - single config line |
-| Type updates      | Manual regeneration      | Automatic with HMR       |
-| Error handling    | Basic CLI output         | Rich contextual errors   |
-| Build integration | Custom setup required    | Built-in optimization    |
-| Performance       | No caching               | Production caching       |
-| Import style      | Verbose paths            | Clean `.ork/types`       |
-| Development UX    | Basic                    | Next.js-like experience  |
 
 ## License
 

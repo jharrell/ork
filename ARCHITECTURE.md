@@ -247,7 +247,7 @@ When making changes to the generator:
 
 ### Generator Core
 
-- `packages/client/src/client-generator.ts` - Main code generation logic (~1500 lines), includes type generation
+- `packages/client/src/client-generator.ts` - Main code generation logic, includes type generation
 - `packages/client/src/client.ts` - Base client class (`OrkClientBase`)
 - `packages/client/src/types.ts` - Type definitions and mappings
 - `packages/client/src/client-factory.ts` - Convenience factory for config-based client creation
@@ -353,7 +353,7 @@ Example directories like `examples/basic` serve as both integration tests and do
 - **Kysely integration**: Wrap a user-supplied Kysely dialect and expose the instance via `$kysely` for advanced scenarios; no hidden engines or connection pools
 - **Programmatic migrations**: Provide `diff()` and `apply()` APIs that operate through Kysely, detect destructive changes, and track migration history
 - **CLI workflow**: Offer `ork init`, `ork generate`, `ork migrate`, and validation commands that orchestrate config loading, schema parsing, and code generation
-- **Vite-first generation**: Ship `unplugin-ork` to watch schemas, emit virtual `.ork/types` modules, and hot-update generated types in dev mode
+- **Vite-first generation**: Ship `unplugin-ork` to watch schemas and regenerate the on-disk `.ork/` client during dev (virtual `.ork/types` modules remain experimental)
 - **Manual fallback path**: Allow type generation without the plugin (CLI command + explicit imports) to support non-Vite environments
 - **Datasource support**: Provide first-class support for PostgreSQL and SQLite, with a clear path to additional Kysely dialects
 - **Zod-style directives**: Recognize and preserve custom directives such as `@ork.validate(...)` within the AST for future runtime hooks
