@@ -2,11 +2,19 @@ name: Publish
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'npm dist-tag'
+        required: true
+        default: 'alpha'
 
 jobs:
   publish-jsr:
     name: Publish to JSR
     runs-on: ubuntu-latest
+    # Non-blocking until slow-types violations are fixed and the @ork-orm scope
+    # exists on jsr.io (tracker #47).
+    continue-on-error: true
     permissions:
       contents: read
       # Required for JSR OIDC trusted publishing.
@@ -61,6 +69,6 @@ jobs:
 
       # Recursive publish skips private packages, so examples/* are excluded.
       - name: Publish all packages to npm
-        run: pnpm -r publish --access public --no-git-checks
+        run: pnpm -r publish --access public --no-git-checks --tag "${{ inputs.tag }}"
         env:
           NPM_CONFIG_PROVENANCE: 'true'
