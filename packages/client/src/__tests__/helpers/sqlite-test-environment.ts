@@ -37,6 +37,7 @@ async function applySqliteSchema(kysely: Kysely<any>) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT UNIQUE NOT NULL,
       name TEXT,
+      score TEXT NOT NULL DEFAULT '0',
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )

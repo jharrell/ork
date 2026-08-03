@@ -220,14 +220,15 @@ export class PostgreSQLTransformationGenerator implements FieldTransformationGen
 
     // For create/update/where operations
     if (isBigInt) {
+      // Number() would silently truncate above 2^53; the pg driver serializes bigint losslessly.
       const transformation = isOptional
-        ? `${variableName} !== null ? Number(${variableName}) : null`
-        : `Number(${variableName})`
+        ? `${variableName} !== null ? BigInt(${variableName} as string | number | bigint) : null`
+        : `BigInt(${variableName} as string | number | bigint)`
 
       return {
         code: transformation,
         imports: [],
-        needsErrorHandling: true, // BigInt conversion can overflow
+        needsErrorHandling: true, // BigInt() throws on non-integral input
         performance: {
           complexity: 'simple',
           inlinable: true,

@@ -65,7 +65,8 @@ export class SQLiteTransformationGenerator implements FieldTransformationGenerat
       case 'Int':
         return 'INTEGER'
       case 'BigInt':
-        return 'INTEGER'
+        // TEXT, not INTEGER: better-sqlite3 returns INTEGER columns as lossy doubles above 2^53.
+        return 'TEXT'
       case 'Float':
       case 'Decimal':
         return 'REAL'
@@ -200,14 +201,15 @@ export class SQLiteTransformationGenerator implements FieldTransformationGenerat
 
     // For create/update/where operations
     if (isBigInt) {
+      // Stored as TEXT: the driver reads INTEGER columns back as lossy doubles above 2^53.
       const transformation = isOptional
-        ? `${variableName} !== null ? Number(${variableName}) : null`
-        : `Number(${variableName})`
+        ? `${variableName} !== null ? String(${variableName}) : null`
+        : `String(${variableName})`
 
       return {
         code: transformation,
         imports: [],
-        needsErrorHandling: true, // BigInt conversion can overflow
+        needsErrorHandling: false,
         performance: {
           complexity: 'simple',
           inlinable: true,
