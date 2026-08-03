@@ -24,7 +24,7 @@ import {
   Enum,
   Equals,
   Generator,
-  Identifier,
+  IdentifierLike,
   LBrace,
   LBracket,
   LParen,
@@ -40,6 +40,7 @@ import {
   View,
 } from './lexer.js'
 import type {
+  ArrayElementAST,
   AttributeArgumentAST,
   AttributeAST,
   AttributeValue,
@@ -60,6 +61,8 @@ type CstChildren = CstChildrenDictionary
 type CstNodeArray = CstNode[]
 
 const DEFAULT_POSITION = { line: 1, column: 1, offset: 0 }
+
+export const UNSUPPORTED_TYPE = 'Unsupported'
 
 function isToken(element: CstElement): element is IToken {
   return 'image' in element
@@ -101,29 +104,48 @@ function spanFromLocation(location?: CstNodeLocation) {
   }
 }
 
+function coordinate(value: number | undefined, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+// Chevrotain's EOF token carries NaN coordinates, so positions must be validated, not just defaulted.
+function isPositioned(token?: IToken): token is IToken {
+  return token !== undefined && Number.isFinite(token.startLine)
+}
+
 function spanFromToken(token?: IToken) {
   if (!token) {
     return { start: DEFAULT_POSITION, end: DEFAULT_POSITION }
   }
+  const start = {
+    line: coordinate(token.startLine, DEFAULT_POSITION.line),
+    column: coordinate(token.startColumn, DEFAULT_POSITION.column),
+    offset: coordinate(token.startOffset, DEFAULT_POSITION.offset),
+  }
   return {
-    start: {
-      line: token.startLine ?? DEFAULT_POSITION.line,
-      column: token.startColumn ?? DEFAULT_POSITION.column,
-      offset: token.startOffset ?? DEFAULT_POSITION.offset,
-    },
+    start,
     end: {
-      line: token.endLine ?? token.startLine ?? DEFAULT_POSITION.line,
-      column: token.endColumn ?? token.startColumn ?? DEFAULT_POSITION.column,
-      offset: token.endOffset ?? token.startOffset ?? DEFAULT_POSITION.offset,
+      line: coordinate(token.endLine, start.line),
+      column: coordinate(token.endColumn, start.column),
+      offset: coordinate(token.endOffset, start.offset),
     },
   }
 }
 
+function hasPreviousToken(error: IRecognitionException): error is IRecognitionException & { previousToken: IToken } {
+  return 'previousToken' in error
+}
+
 function spanFromRecognitionError(error: IRecognitionException) {
-  const startToken = error.token
-  const endToken = error.resyncedTokens?.length ? error.resyncedTokens[error.resyncedTokens.length - 1] : startToken
+  if (!isPositioned(error.token)) {
+    // Error at EOF: report at the end of the last consumed token.
+    const end = spanFromToken(hasPreviousToken(error) ? error.previousToken : undefined).end
+    return { start: end, end }
+  }
+  const resyncedTokens = (error.resyncedTokens ?? []).filter(isPositioned)
+  const endToken = resyncedTokens.length ? resyncedTokens[resyncedTokens.length - 1] : error.token
   return {
-    start: spanFromToken(startToken).start,
+    start: spanFromToken(error.token).start,
     end: spanFromToken(endToken).end,
   }
 }
@@ -175,14 +197,14 @@ export class Parser extends CstParser {
   // DataSource declaration
   dataSource = this.RULE('dataSource', () => {
     this.CONSUME(DataSource)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.configBlock)
   })
 
   // Generator declaration
   generator = this.RULE('generator', () => {
     this.CONSUME(Generator)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.configBlock)
   })
 
@@ -197,7 +219,7 @@ export class Parser extends CstParser {
 
   // Config property (used in datasource and generator)
   configProperty = this.RULE('configProperty', () => {
-    this.CONSUME(Identifier, { LABEL: 'key' })
+    this.CONSUME(IdentifierLike, { LABEL: 'key' })
     this.CONSUME(Equals)
     this.SUBRULE(this.configValue)
   })
@@ -208,19 +230,19 @@ export class Parser extends CstParser {
       { ALT: () => this.CONSUME(NumberLiteral, { LABEL: 'value' }) },
       { ALT: () => this.SUBRULE(this.functionCall) },
       { ALT: () => this.SUBRULE(this.arrayValue) },
-      { ALT: () => this.CONSUME(Identifier, { LABEL: 'value' }) },
+      { ALT: () => this.CONSUME(IdentifierLike, { LABEL: 'value' }) },
     ])
   })
 
   // Function call like env("DATABASE_URL") or cuid()
   functionCall = this.RULE('functionCall', () => {
-    this.CONSUME(Identifier, { LABEL: 'functionName' })
+    this.CONSUME(IdentifierLike, { LABEL: 'functionName' })
     this.CONSUME(LParen)
     this.OPTION(() => {
       this.OR([
         { ALT: () => this.CONSUME(StringLiteral, { LABEL: 'argument' }) },
         { ALT: () => this.CONSUME(NumberLiteral, { LABEL: 'argument' }) },
-        { ALT: () => this.CONSUME2(Identifier, { LABEL: 'argument' }) },
+        { ALT: () => this.CONSUME2(IdentifierLike, { LABEL: 'argument' }) },
       ])
     })
     this.CONSUME(RParen)
@@ -229,19 +251,19 @@ export class Parser extends CstParser {
   // Model declaration
   model = this.RULE('model', () => {
     this.CONSUME(Model)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.modelBody)
   })
 
   typeDeclaration = this.RULE('typeDeclaration', () => {
     this.CONSUME(Type)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.modelBody)
   })
 
   viewDeclaration = this.RULE('viewDeclaration', () => {
     this.CONSUME(View)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.modelBody)
   })
 
@@ -255,8 +277,8 @@ export class Parser extends CstParser {
 
   // Field declaration
   field = this.RULE('field', () => {
-    this.CONSUME(Identifier, { LABEL: 'name' })
-    this.CONSUME2(Identifier, { LABEL: 'type' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
+    this.SUBRULE(this.fieldTypeRef)
 
     // Optional field modifiers
     this.OPTION(() => {
@@ -278,13 +300,30 @@ export class Parser extends CstParser {
     })
   })
 
+  // Field type: a plain type name or Unsupported("db type")
+  fieldTypeRef = this.RULE('fieldTypeRef', () => {
+    this.OR([
+      {
+        // Gated so that other names followed by "(" stay syntax errors.
+        GATE: () => this.LA(1).image === UNSUPPORTED_TYPE && this.LA(2).tokenType === LParen,
+        ALT: () => {
+          this.CONSUME(IdentifierLike, { LABEL: 'name' })
+          this.CONSUME(LParen)
+          this.CONSUME(StringLiteral, { LABEL: 'unsupportedType' })
+          this.CONSUME(RParen)
+        },
+      },
+      { ALT: () => this.CONSUME2(IdentifierLike, { LABEL: 'name' }) },
+    ])
+  })
+
   // Field attribute (@id, @unique, @db.VarChar, etc.)
   fieldAttribute = this.RULE('fieldAttribute', () => {
     this.CONSUME(At)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.OPTION1(() => {
       this.CONSUME(Dot)
-      this.CONSUME2(Identifier, { LABEL: 'nativeTypeName' })
+      this.CONSUME2(IdentifierLike, { LABEL: 'nativeTypeName' })
     })
     this.OPTION2(() => {
       this.SUBRULE(this.attributeArguments)
@@ -294,10 +333,10 @@ export class Parser extends CstParser {
   // Model attribute (@@id, @@unique, etc.)
   modelAttribute = this.RULE('modelAttribute', () => {
     this.CONSUME(AtAt)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.OPTION1(() => {
       this.CONSUME(Dot)
-      this.CONSUME2(Identifier, { LABEL: 'nativeTypeName' })
+      this.CONSUME2(IdentifierLike, { LABEL: 'nativeTypeName' })
     })
     this.OPTION2(() => {
       this.SUBRULE(this.attributeArguments)
@@ -320,7 +359,7 @@ export class Parser extends CstParser {
   attributeArgument = this.RULE('attributeArgument', () => {
     // Named argument (name: value) or positional argument
     this.OPTION(() => {
-      this.CONSUME(Identifier, { LABEL: 'name' })
+      this.CONSUME(IdentifierLike, { LABEL: 'name' })
       this.CONSUME(Colon)
     })
 
@@ -328,7 +367,7 @@ export class Parser extends CstParser {
       { ALT: () => this.CONSUME(StringLiteral, { LABEL: 'value' }) },
       { ALT: () => this.CONSUME(NumberLiteral, { LABEL: 'value' }) },
       { ALT: () => this.SUBRULE(this.functionCall) }, // Support function calls like cuid()
-      { ALT: () => this.CONSUME2(Identifier, { LABEL: 'value' }) },
+      { ALT: () => this.CONSUME2(IdentifierLike, { LABEL: 'value' }) },
       { ALT: () => this.SUBRULE(this.arrayValue) }, // Support array values like [userId]
     ])
   })
@@ -349,24 +388,32 @@ export class Parser extends CstParser {
     this.OR([
       { ALT: () => this.CONSUME(StringLiteral, { LABEL: 'element' }) },
       { ALT: () => this.CONSUME(NumberLiteral, { LABEL: 'element' }) },
-      { ALT: () => this.CONSUME(Identifier, { LABEL: 'element' }) },
+      {
+        ALT: () => {
+          this.CONSUME(IdentifierLike, { LABEL: 'element' })
+          // Per-field index modifiers: [title(sort: Desc), body(ops: raw("gin_trgm_ops"))]
+          this.OPTION(() => {
+            this.SUBRULE(this.attributeArguments)
+          })
+        },
+      },
     ])
   })
 
   // Enum declaration
   enumDeclaration = this.RULE('enumDeclaration', () => {
     this.CONSUME(Enum)
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.CONSUME(LBrace)
     this.MANY(() => {
-      this.SUBRULE(this.enumValue)
+      this.OR([{ ALT: () => this.SUBRULE(this.enumValue) }, { ALT: () => this.SUBRULE(this.modelAttribute) }])
     })
     this.CONSUME(RBrace)
   })
 
   // Enum value
   enumValue = this.RULE('enumValue', () => {
-    this.CONSUME(Identifier, { LABEL: 'name' })
+    this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.MANY(() => {
       this.SUBRULE(this.fieldAttribute) // Enum values can have attributes
     })
@@ -518,7 +565,8 @@ export class SchemaVisitor implements ICstVisitor<unknown, unknown> {
   field(node: CstNode): FieldAST {
     const children = node.children
     const name = getTokenImage(children, 'name')
-    const fieldType = getTokenImage(children, 'type') as FieldType
+    const typeRefNode = getNodes(children, 'fieldTypeRef')[0]
+    const typeRef = typeRefNode ? this.fieldTypeRef(typeRefNode) : { name: '' }
     const isOptional = getTokens(children, 'Question').length > 0
     const isList = getTokens(children, 'LBracket').length > 0
     const attributes = getNodes(children, 'fieldAttribute').map((child) => this.fieldAttribute(child))
@@ -527,10 +575,20 @@ export class SchemaVisitor implements ICstVisitor<unknown, unknown> {
       type: 'Field',
       span: this.getSpan(node),
       name,
-      fieldType,
+      fieldType: typeRef.name,
       isOptional,
       isList,
       attributes,
+      ...(typeRef.unsupportedType === undefined ? {} : { unsupportedType: typeRef.unsupportedType }),
+    }
+  }
+
+  fieldTypeRef(node: CstNode): { name: FieldType; unsupportedType?: string } {
+    const children = node.children
+    const unsupportedType = getTokens(children, 'unsupportedType')[0]
+    return {
+      name: getTokenImage(children, 'name'),
+      unsupportedType: unsupportedType ? parseStringLiteral(unsupportedType.image) : undefined,
     }
   }
 
@@ -553,11 +611,12 @@ export class SchemaVisitor implements ICstVisitor<unknown, unknown> {
     const arrayNode = getNodes(children, 'arrayValue')[0]
     const functionNode = getNodes(children, 'functionCall')[0]
     const valueToken = getTokens(children, 'value')[0]
+    const elements = arrayNode ? this.arrayElements(arrayNode) : undefined
 
     let value: AttributeValue = ''
 
-    if (arrayNode) {
-      value = this.arrayValue(arrayNode)
+    if (elements) {
+      value = elements.map((element) => element.value)
     } else if (functionNode) {
       value = this.functionCall(functionNode)
     } else if (valueToken) {
@@ -569,29 +628,39 @@ export class SchemaVisitor implements ICstVisitor<unknown, unknown> {
       span: this.getSpan(node),
       name,
       value,
+      ...(elements ? { elements } : {}),
     }
   }
 
   arrayValue(node: CstNode): Array<string | number | boolean> {
-    const children = node.children
-    return getNodes(children, 'arrayElement').map((child) => this.arrayElement(child))
+    return this.arrayElements(node).map((element) => element.value)
   }
 
-  arrayElement(node: CstNode): string | number | boolean {
-    const token = getTokens(node.children, 'element')[0]
-    return token ? parseScalar(token) : ''
+  arrayElement(node: CstNode): ArrayElementAST {
+    const children = node.children
+    const token = getTokens(children, 'element')[0]
+    const argsNode = getNodes(children, 'attributeArguments')[0]
+
+    return {
+      type: 'ArrayElement',
+      span: this.getSpan(node),
+      value: token ? parseScalar(token) : '',
+      args: argsNode ? this.attributeArguments(argsNode) : [],
+    }
   }
 
   enumDeclaration(node: CstNode): EnumAST {
     const children = node.children
     const name = getTokenImage(children, 'name')
     const values = getNodes(children, 'enumValue').map((child) => this.enumValue(child))
+    const attributes = getNodes(children, 'modelAttribute').map((child) => this.modelAttribute(child))
 
     return {
       type: 'Enum',
       span: this.getSpan(node),
       name,
       values,
+      attributes,
     }
   }
 
@@ -606,6 +675,10 @@ export class SchemaVisitor implements ICstVisitor<unknown, unknown> {
       name,
       attributes,
     }
+  }
+
+  private arrayElements(node: CstNode): ArrayElementAST[] {
+    return getNodes(node.children, 'arrayElement').map((child) => this.arrayElement(child))
   }
 
   private buildModelLike(node: CstNode, kind: 'Model' | 'Type' | 'View') {

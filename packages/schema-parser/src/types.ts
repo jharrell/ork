@@ -70,12 +70,16 @@ export interface FieldAST extends ASTNode {
   isOptional: boolean
   isList: boolean
   attributes: AttributeAST[]
+  /** Raw database type from `Unsupported("...")`; set only for such fields, which generators cannot map. */
+  unsupportedType?: string
 }
 
 export interface EnumAST extends ASTNode {
   type: 'Enum'
   name: string
   values: EnumValueAST[]
+  /** Block attributes (`@@map`, `@@schema`); always set by the parser. */
+  attributes?: AttributeAST[]
 }
 
 export interface EnumValueAST extends ASTNode {
@@ -94,6 +98,15 @@ export interface AttributeArgumentAST extends ASTNode {
   type: 'AttributeArgument'
   name?: string
   value: AttributeValue
+  /** Set for array arguments; keeps the per-element modifiers that `value` flattens away. */
+  elements?: ArrayElementAST[]
+}
+
+export interface ArrayElementAST extends ASTNode {
+  type: 'ArrayElement'
+  value: string | number | boolean
+  /** Index modifiers such as `sort`, `length`, `ops` in `[title(sort: Desc)]`. */
+  args: AttributeArgumentAST[]
 }
 
 export type AttributeValue = string | number | boolean | Array<string | number | boolean>
