@@ -1,0 +1,75 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'npm dist-tag'
+        required: true
+        default: 'alpha'
+
+jobs:
+  publish-jsr:
+    name: Publish to JSR
+    runs-on: ubuntu-latest
+    # Non-blocking until slow-types violations are fixed and the @ork-orm scope
+    # exists on jsr.io (tracker #47).
+    continue-on-error: true
+    permissions:
+      contents: read
+      # Required for JSR OIDC trusted publishing.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # JSR publishes TypeScript source, so no build step is needed. Filtered to
+      # packages/* because examples/* are private workspace members with no jsr.json;
+      # the CLI is npm-only (JSR has no bin support).
+      - name: Publish library packages to JSR
+        run: pnpm --filter './packages/*' --filter '!ork' exec npx jsr publish
+
+  publish-npm:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required for npm OIDC trusted publishing and provenance attestation.
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      # Trusted publishing requires a recent npm CLI.
+      - name: Update npm to latest
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      # Recursive publish skips private packages, so examples/* are excluded.
+      - name: Publish all packages to npm
+        run: pnpm -r publish --access public --no-git-checks --tag "${{ inputs.tag }}"
+        env:
+          NPM_CONFIG_PROVENANCE: 'true'
