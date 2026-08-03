@@ -34,9 +34,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # JSR publishes TypeScript source, so no build step is needed. Filtered to
-      # packages/* because examples/* are private workspace members with no jsr.json.
-      - name: Publish all packages to JSR
-        run: pnpm --filter './packages/*' exec npx jsr publish
+      # packages/* because examples/* are private workspace members with no jsr.json;
+      # the CLI is npm-only (JSR has no bin support).
+      - name: Publish library packages to JSR
+        run: pnpm --filter './packages/*' --filter '!ork' exec npx jsr publish
 
   publish-npm:
     name: Publish to npm
