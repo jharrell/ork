@@ -3,6 +3,12 @@ import { z } from 'zod'
 import { SUPPORTED_PROVIDERS } from './constants.js'
 
 /**
+ * Search order used when `schema` isn't explicitly configured. `./schema.prisma` stays
+ * first for back-compat; `prisma/schema.prisma` is Prisma's canonical location.
+ */
+export const DEFAULT_SCHEMA_SEARCH_PATHS = ['./schema.prisma', 'prisma/schema.prisma'] as const
+
+/**
  * Ork configuration schema
  */
 export const OrkConfigSchema = z.object({
@@ -17,7 +23,7 @@ export const OrkConfigSchema = z.object({
       output: z.string().default('./.ork'),
     })
     .optional(),
-  schema: z.string().default('./schema.prisma'),
+  schema: z.string().default(DEFAULT_SCHEMA_SEARCH_PATHS[0]),
 })
 
 export type OrkConfig = z.infer<typeof OrkConfigSchema>
