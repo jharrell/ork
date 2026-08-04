@@ -15,19 +15,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      # pnpm/setup supersedes pnpm/action-setup for pnpm 11+: it fetches the
+      # self-contained pnpm binary and installs Node in the same step, so no
+      # actions/setup-node is needed. The pnpm version is deliberately not
+      # pinned here — it is read from `packageManager` in package.json, so
+      # there is exactly one source of truth. `pnpm install` runs automatically
+      # (frozen-lockfile in CI).
+      - name: Setup pnpm and Node
+        uses: pnpm/setup@v2
         with:
-          version: 10
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install
-        run: pnpm install
+          runtime: node@24
+          cache: true
 
       - name: Build
         run: pnpm -r build

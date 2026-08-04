@@ -27,6 +27,7 @@
   ],
   "scripts": {
     "build": "tsup",
+    "dev": "tsup --watch",
     "test": "vitest run",
     "type-check": "tsc --noEmit",
     "prepublishOnly": "pnpm run build"
@@ -44,7 +45,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.0.0"
   },
   "tsup": {
     "entry": [
@@ -57,6 +58,7 @@
     "clean": true,
     "external": [
       "@ork-orm/schema-parser"
-    ]
+    ],
+    "target": "node24"
   }
 }

@@ -12,9 +12,13 @@ jobs:
   publish-jsr:
     name: Publish to JSR
     runs-on: ubuntu-latest
-    # Non-blocking until slow-types violations are fixed and the @ork-orm scope
-    # exists on jsr.io (tracker #47).
+    # The @ork-orm scope and all six packages exist on jsr.io and are linked to
+    # this repo, so OIDC auth is wired. The remaining blocker is slow types in
+    # schema-parser (49) and field-translator (6); the other four packages are
+    # clean. See jharrell/ork-tracker#47. Adding `--allow-slow-types` below
+    # makes it pass today, at the cost of JSR type-check perf and its docs.
     continue-on-error: true
+    environment: release
     permissions:
       contents: read
       # Required for JSR OIDC trusted publishing.
@@ -22,16 +26,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v6
+      # pnpm version comes from `packageManager` in package.json; Node is
+      # installed by the same action, so no actions/setup-node. `pnpm install`
+      # runs automatically with a frozen lockfile.
+      - uses: pnpm/setup@v2
         with:
-          node-version: '22'
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          runtime: node@24
 
       # JSR publishes TypeScript source, so no build step is needed. Filtered to
       # packages/* because examples/* are private workspace members with no jsr.json;
@@ -42,6 +42,11 @@ jobs:
   publish-npm:
     name: Publish to npm
     runs-on: ubuntu-latest
+    # Gate for the OIDC trust relationship. Add required reviewers to the
+    # `release` environment in repo settings to make a dispatch need approval;
+    # the environment name must match the one configured on each npm package's
+    # trusted publisher (or be left blank there).
+    environment: release
     permissions:
       contents: read
       # Required for npm OIDC trusted publishing and provenance attestation.
@@ -49,27 +54,21 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v6
+      # No actions/setup-node and no `registry-url`: auth is npm trusted
+      # publishing via the OIDC token granted by `id-token: write` above, so
+      # there is no NPM_TOKEN and nothing to write into an .npmrc.
+      - uses: pnpm/setup@v2
         with:
-          node-version: '22'
-          registry-url: 'https://registry.npmjs.org'
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      # Trusted publishing requires a recent npm CLI.
-      - name: Update npm to latest
-        run: npm install -g npm@latest
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          runtime: node@24
 
       - name: Build all packages
         run: pnpm build
 
       # Recursive publish skips private packages, so examples/* are excluded.
+      # `pnpm publish` is native since pnpm 11 (no npm CLI fallback), so
+      # provenance MUST be the flag: pnpm ignores `npm_config_*` env vars, and
+      # the old NPM_CONFIG_PROVENANCE would silently publish unattested.
       - name: Publish all packages to npm
-        run: pnpm -r publish --access public --no-git-checks --tag "${{ inputs.tag }}"
-        env:
-          NPM_CONFIG_PROVENANCE: 'true'
+        run: >-
+          pnpm -r publish --access public --no-git-checks --provenance
+          --tag "${{ inputs.tag }}"

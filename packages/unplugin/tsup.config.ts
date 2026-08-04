@@ -9,7 +9,7 @@ export default defineConfig({
     esbuild: 'src/esbuild.ts',
   },
   format: ['cjs', 'esm'],
-  target: 'node20',
+  target: 'node24',
   dts: true,
   sourcemap: true,
   clean: true,
