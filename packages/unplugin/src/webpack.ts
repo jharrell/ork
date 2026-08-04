@@ -14,7 +14,7 @@ export const OrkWebpackPlugin = unpluginOrk.webpack
 export class OrkPlugin {
   constructor(private options: OrkPluginOptions = {}) {}
 
-  apply(compiler: Compiler) {
+  apply(compiler: Compiler): void {
     const plugin = unpluginOrk.webpack(this.options)
 
     // Apply webpack-specific optimizations

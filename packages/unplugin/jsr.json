@@ -7,5 +7,6 @@
     "./webpack": "./src/webpack.ts",
     "./rollup": "./src/rollup.ts",
     "./esbuild": "./src/esbuild.ts"
-  }
+  },
+  "license": "Apache-2.0"
 }

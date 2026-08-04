@@ -9,7 +9,7 @@ import { createFieldTranslator, type DatabaseDialect, detectDialect, type OrkCon
 import type { FieldAST, ModelAST, SchemaAST } from '@ork-orm/schema-parser'
 import dedent from 'dedent'
 
-import { PRISMA_TO_TS_TYPES } from './types'
+import { type GeneratedField, PRISMA_TO_TS_TYPES } from './types'
 
 export interface ClientGeneratorOptions {
   /** Database dialect for transformations */
@@ -278,7 +278,7 @@ export class ClientGenerator {
   /**
    * Generate fields for a model
    */
-  generateModelFields(model: ModelAST) {
+  generateModelFields(model: ModelAST): GeneratedField[] {
     return model.fields.map((field) => {
       const isPrimaryKey = this.isPrimaryKey(field)
       const isUnique = field.attributes.some((attr) => attr.name === 'unique') || isPrimaryKey
