@@ -34,9 +34,11 @@ jobs:
 
       # JSR publishes TypeScript source, so no build step is needed. Filtered to
       # packages/* because examples/* are private workspace members with no jsr.json;
-      # the CLI is npm-only (JSR has no bin support).
+      # the CLI is npm-only (JSR has no bin support). Serialized for the same reason
+      # as CI's dry-run: parallel `npx jsr` invocations race on the shared Deno
+      # binary download and fail with ENOENT on a cold runner.
       - name: Publish library packages to JSR
-        run: pnpm --filter './packages/*' --filter '!ork' exec npx jsr publish
+        run: pnpm --workspace-concurrency=1 --filter './packages/*' --filter '!ork' exec npx jsr publish
 
   publish-npm:
     name: Publish to npm

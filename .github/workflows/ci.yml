@@ -38,8 +38,10 @@ jobs:
 
       # The publish workflow runs `jsr publish` without `--allow-slow-types`, so an
       # un-annotated export would only surface at release time. Catch it on the PR.
+      # Serialized: each `npx jsr` fetches the same Deno binary into one shared npx
+      # cache, and parallel invocations race on the partial download (ENOENT on rename).
       - name: JSR slow-types check
-        run: pnpm --filter './packages/*' --filter '!ork' exec npx jsr publish --dry-run --allow-dirty
+        run: pnpm --workspace-concurrency=1 --filter './packages/*' --filter '!ork' exec npx jsr publish --dry-run --allow-dirty
 
       # Includes the PostgreSQL Testcontainers suites; Docker is preinstalled
       # on GitHub's ubuntu runners.
