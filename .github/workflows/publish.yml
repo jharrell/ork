@@ -12,12 +12,11 @@ jobs:
   publish-jsr:
     name: Publish to JSR
     runs-on: ubuntu-latest
-    # The @ork-orm scope and all six packages exist on jsr.io and are linked to
-    # this repo, so OIDC auth is wired. The remaining blocker is slow types in
-    # schema-parser (49) and field-translator (6); the other four packages are
-    # clean. See jharrell/ork-tracker#47. Adding `--allow-slow-types` below
-    # makes it pass today, at the cost of JSR type-check perf and its docs.
-    continue-on-error: true
+    # All six library packages exist on jsr.io, are linked to this repo (which
+    # is what authorizes the OIDC publish), and pass `jsr publish --dry-run`
+    # with no slow-type errors. No `continue-on-error` and no
+    # `--allow-slow-types`: a slow-type regression should fail the release, not
+    # be waved through. Keep exported symbols explicitly typed.
     environment: release
     permissions:
       contents: read

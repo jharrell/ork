@@ -2,68 +2,68 @@
  * Chevrotain-based Prisma Schema Language Lexer
  */
 
-import { createToken, type ILexingError, IToken, Lexer as ChevrotainLexer } from 'chevrotain'
+import { createToken, type ILexingError, IToken, Lexer as ChevrotainLexer, type TokenType } from 'chevrotain'
 
 // Category matched by identifiers and by keywords used in identifier position (contextual keywords)
-export const IdentifierLike = createToken({ name: 'IdentifierLike', pattern: ChevrotainLexer.NA })
+export const IdentifierLike: TokenType = createToken({ name: 'IdentifierLike', pattern: ChevrotainLexer.NA })
 
 // Identifiers and literals - declare first for reference
-export const Identifier = createToken({
+export const Identifier: TokenType = createToken({
   name: 'Identifier',
   pattern: /[a-zA-Z_][a-zA-Z0-9_]*/,
   categories: [IdentifierLike],
 })
 
 // Keywords
-const keyword = (name: string, pattern: RegExp) =>
+const keyword = (name: string, pattern: RegExp): TokenType =>
   createToken({ name, pattern, longer_alt: Identifier, categories: [IdentifierLike] })
 
-export const Model = keyword('Model', /model/)
-export const Enum = keyword('Enum', /enum/)
-export const DataSource = keyword('DataSource', /datasource/)
-export const Generator = keyword('Generator', /generator/)
-export const Type = keyword('Type', /type/)
-export const View = keyword('View', /view/)
+export const Model: TokenType = keyword('Model', /model/)
+export const Enum: TokenType = keyword('Enum', /enum/)
+export const DataSource: TokenType = keyword('DataSource', /datasource/)
+export const Generator: TokenType = keyword('Generator', /generator/)
+export const Type: TokenType = keyword('Type', /type/)
+export const View: TokenType = keyword('View', /view/)
 
-export const StringLiteral = createToken({
+export const StringLiteral: TokenType = createToken({
   name: 'StringLiteral',
   pattern: /"(?:[^"\\]|\\.)*"/,
   line_breaks: false,
 })
-export const NumberLiteral = createToken({
+export const NumberLiteral: TokenType = createToken({
   name: 'NumberLiteral',
   pattern: /-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?/,
 })
 
 // Punctuation
-export const LBrace = createToken({ name: 'LBrace', pattern: /{/ })
-export const RBrace = createToken({ name: 'RBrace', pattern: /}/ })
-export const LParen = createToken({ name: 'LParen', pattern: /\(/ })
-export const RParen = createToken({ name: 'RParen', pattern: /\)/ })
-export const LBracket = createToken({ name: 'LBracket', pattern: /\[/ })
-export const RBracket = createToken({ name: 'RBracket', pattern: /\]/ })
-export const AtAt = createToken({ name: 'AtAt', pattern: /@@/ })
-export const At = createToken({ name: 'At', pattern: /@/, longer_alt: AtAt })
-export const Equals = createToken({ name: 'Equals', pattern: /=/ })
-export const Question = createToken({ name: 'Question', pattern: /\?/ })
-export const Comma = createToken({ name: 'Comma', pattern: /,/ })
-export const Dot = createToken({ name: 'Dot', pattern: /\./ })
-export const Colon = createToken({ name: 'Colon', pattern: /:/ })
+export const LBrace: TokenType = createToken({ name: 'LBrace', pattern: /{/ })
+export const RBrace: TokenType = createToken({ name: 'RBrace', pattern: /}/ })
+export const LParen: TokenType = createToken({ name: 'LParen', pattern: /\(/ })
+export const RParen: TokenType = createToken({ name: 'RParen', pattern: /\)/ })
+export const LBracket: TokenType = createToken({ name: 'LBracket', pattern: /\[/ })
+export const RBracket: TokenType = createToken({ name: 'RBracket', pattern: /\]/ })
+export const AtAt: TokenType = createToken({ name: 'AtAt', pattern: /@@/ })
+export const At: TokenType = createToken({ name: 'At', pattern: /@/, longer_alt: AtAt })
+export const Equals: TokenType = createToken({ name: 'Equals', pattern: /=/ })
+export const Question: TokenType = createToken({ name: 'Question', pattern: /\?/ })
+export const Comma: TokenType = createToken({ name: 'Comma', pattern: /,/ })
+export const Dot: TokenType = createToken({ name: 'Dot', pattern: /\./ })
+export const Colon: TokenType = createToken({ name: 'Colon', pattern: /:/ })
 
 // Comments and whitespace
-export const SingleLineComment = createToken({
+export const SingleLineComment: TokenType = createToken({
   name: 'SingleLineComment',
   pattern: /\/\/[^\r\n]*/,
   group: ChevrotainLexer.SKIPPED,
 })
 
-export const MultiLineComment = createToken({
+export const MultiLineComment: TokenType = createToken({
   name: 'MultiLineComment',
   pattern: /\/\*[\s\S]*?\*\//,
   group: ChevrotainLexer.SKIPPED,
 })
 
-export const WhiteSpace = createToken({
+export const WhiteSpace: TokenType = createToken({
   name: 'WhiteSpace',
   pattern: /\s+/,
   group: ChevrotainLexer.SKIPPED,
@@ -107,7 +107,7 @@ export const allTokens = [
   Colon,
 ]
 
-export const SchemaLexer = new ChevrotainLexer(allTokens, {
+export const SchemaLexer: ChevrotainLexer = new ChevrotainLexer(allTokens, {
   // Uncomment this to see token recognition debug info
   // positionTracking: "full"
 })

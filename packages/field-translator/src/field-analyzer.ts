@@ -202,7 +202,13 @@ export class ModelTransformationRegistry {
   /**
    * Get generation statistics
    */
-  getStats() {
+  getStats(): {
+    modelCount: number
+    fieldCount: number
+    transformationCount: number
+    errorCount: number
+    dialect: DatabaseDialect | 'unknown'
+  } {
     const models = this.getAllModels()
     let totalFields = 0
     let totalTransformations = 0

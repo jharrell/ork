@@ -36,6 +36,11 @@ jobs:
       - name: Typecheck
         run: pnpm -r typecheck
 
+      # The publish workflow runs `jsr publish` without `--allow-slow-types`, so an
+      # un-annotated export would only surface at release time. Catch it on the PR.
+      - name: JSR slow-types check
+        run: pnpm --filter './packages/*' --filter '!ork' exec npx jsr publish --dry-run --allow-dirty
+
       # Includes the PostgreSQL Testcontainers suites; Docker is preinstalled
       # on GitHub's ubuntu runners.
       - name: Test

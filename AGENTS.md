@@ -90,7 +90,7 @@ through `dist/`, so parallel watchers alone would race on a clean tree. It is sc
 `pnpm install` automatically — there is no `actions/setup-node` and no separate install step.
 Then:
 
-`pnpm -r build` → `pnpm lint` → `pnpm -r typecheck` → `pnpm -r test`
+`pnpm -r build` → `pnpm lint` → `pnpm -r typecheck` → JSR slow-types dry-run → `pnpm -r test`
 → `node packages/cli/dist/bin.js --help` → `cd examples/vite && node ../../packages/cli/dist/bin.js generate`
 
 The last step means **generation against `examples/vite` is a CI smoke test** — a generator change
@@ -122,14 +122,16 @@ credential.
   After it works, set Publishing access → _Require two-factor authentication and disallow tokens_.
 - **JSR needs no per-package secret.** All six `@ork-orm/*` packages already exist on jsr.io and
   are linked to `jharrell/ork`, which is what authorizes the OIDC publish.
-- **JSR still fails on slow types, in two packages.** `jsr publish --dry-run` is clean for
-  `client`, `config`, `migrate`, and `unplugin`; `schema-parser` (49) and `field-translator` (6)
-  still report `missing-explicit-type` / `missing-explicit-return-type` — **55 total** — so the
-  job stays `continue-on-error`. Tracked in
-  [ork-tracker#47](https://github.com/jharrell/ork-tracker/issues/47). Adding
-  `--allow-slow-types` to the publish step makes it pass today (verified via dry-run) at the cost
-  of JSR's type-check performance and generated docs; the durable fix is explicit types on the
-  exported API. When you add an export to a clean package, annotate it or you re-break that package.
+- **JSR is un-gated and must stay that way.** All six packages pass
+  `jsr publish --dry-run` with zero slow-type errors, so the job has no `continue-on-error` and
+  the publish command deliberately does **not** pass `--allow-slow-types` — a regression should
+  fail the release rather than ship degraded types and docs. CI runs the same dry-run on every PR
+  so it fails there first.
+- **Every exported symbol needs an explicit type.** That is what "slow types" means in practice:
+  no inferred `export const x = makeThing()`, no un-annotated exported function return. Zod
+  schemas and library-built singletons are the usual offenders — see `OrkConfigSchema` in
+  `packages/config/src/types.ts` for the pattern. Closed via
+  [ork-tracker#47](https://github.com/jharrell/ork-tracker/issues/47).
 
 ## Key Packages
 

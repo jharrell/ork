@@ -314,4 +314,4 @@ export class SQLiteTransformationGenerator implements FieldTransformationGenerat
 /**
  * Pre-configured SQLite transformation generator instance
  */
-export const sqliteGenerator = new SQLiteTransformationGenerator()
+export const sqliteGenerator: SQLiteTransformationGenerator = new SQLiteTransformationGenerator()

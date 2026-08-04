@@ -333,4 +333,4 @@ export class PostgreSQLTransformationGenerator implements FieldTransformationGen
 /**
  * Pre-configured PostgreSQL transformation generator instance
  */
-export const postgresqlGenerator = new PostgreSQLTransformationGenerator()
+export const postgresqlGenerator: PostgreSQLTransformationGenerator = new PostgreSQLTransformationGenerator()

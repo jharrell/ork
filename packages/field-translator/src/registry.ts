@@ -46,4 +46,5 @@ export class DefaultTransformationGeneratorRegistry implements TransformationGen
 /**
  * Global registry instance
  */
-export const transformationRegistry = new DefaultTransformationGeneratorRegistry()
+export const transformationRegistry: DefaultTransformationGeneratorRegistry =
+  new DefaultTransformationGeneratorRegistry()

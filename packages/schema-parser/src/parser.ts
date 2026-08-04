@@ -10,6 +10,7 @@ import type {
   ICstVisitor,
   IRecognitionException,
   IToken,
+  ParserMethod,
 } from 'chevrotain'
 import { CstParser } from 'chevrotain'
 
@@ -181,7 +182,7 @@ export class Parser extends CstParser {
   }
 
   // Root rule
-  schema = this.RULE('schema', () => {
+  schema: ParserMethod<[], CstNode> = this.RULE('schema', () => {
     this.MANY(() => {
       this.OR([
         { ALT: () => this.SUBRULE(this.dataSource) },
@@ -195,21 +196,21 @@ export class Parser extends CstParser {
   })
 
   // DataSource declaration
-  dataSource = this.RULE('dataSource', () => {
+  dataSource: ParserMethod<[], CstNode> = this.RULE('dataSource', () => {
     this.CONSUME(DataSource)
     this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.configBlock)
   })
 
   // Generator declaration
-  generator = this.RULE('generator', () => {
+  generator: ParserMethod<[], CstNode> = this.RULE('generator', () => {
     this.CONSUME(Generator)
     this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.configBlock)
   })
 
   // Shared config block (used in datasource and generator)
-  configBlock = this.RULE('configBlock', () => {
+  configBlock: ParserMethod<[], CstNode> = this.RULE('configBlock', () => {
     this.CONSUME(LBrace)
     this.MANY(() => {
       this.SUBRULE(this.configProperty)
@@ -218,13 +219,13 @@ export class Parser extends CstParser {
   })
 
   // Config property (used in datasource and generator)
-  configProperty = this.RULE('configProperty', () => {
+  configProperty: ParserMethod<[], CstNode> = this.RULE('configProperty', () => {
     this.CONSUME(IdentifierLike, { LABEL: 'key' })
     this.CONSUME(Equals)
     this.SUBRULE(this.configValue)
   })
 
-  configValue = this.RULE('configValue', () => {
+  configValue: ParserMethod<[], CstNode> = this.RULE('configValue', () => {
     this.OR([
       { ALT: () => this.CONSUME(StringLiteral, { LABEL: 'value' }) },
       { ALT: () => this.CONSUME(NumberLiteral, { LABEL: 'value' }) },
@@ -235,7 +236,7 @@ export class Parser extends CstParser {
   })
 
   // Function call like env("DATABASE_URL") or cuid()
-  functionCall = this.RULE('functionCall', () => {
+  functionCall: ParserMethod<[], CstNode> = this.RULE('functionCall', () => {
     this.CONSUME(IdentifierLike, { LABEL: 'functionName' })
     this.CONSUME(LParen)
     this.OPTION(() => {
@@ -249,25 +250,25 @@ export class Parser extends CstParser {
   })
 
   // Model declaration
-  model = this.RULE('model', () => {
+  model: ParserMethod<[], CstNode> = this.RULE('model', () => {
     this.CONSUME(Model)
     this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.modelBody)
   })
 
-  typeDeclaration = this.RULE('typeDeclaration', () => {
+  typeDeclaration: ParserMethod<[], CstNode> = this.RULE('typeDeclaration', () => {
     this.CONSUME(Type)
     this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.modelBody)
   })
 
-  viewDeclaration = this.RULE('viewDeclaration', () => {
+  viewDeclaration: ParserMethod<[], CstNode> = this.RULE('viewDeclaration', () => {
     this.CONSUME(View)
     this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.modelBody)
   })
 
-  modelBody = this.RULE('modelBody', () => {
+  modelBody: ParserMethod<[], CstNode> = this.RULE('modelBody', () => {
     this.CONSUME(LBrace)
     this.MANY(() => {
       this.OR([{ ALT: () => this.SUBRULE(this.field) }, { ALT: () => this.SUBRULE(this.modelAttribute) }])
@@ -276,7 +277,7 @@ export class Parser extends CstParser {
   })
 
   // Field declaration
-  field = this.RULE('field', () => {
+  field: ParserMethod<[], CstNode> = this.RULE('field', () => {
     this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.SUBRULE(this.fieldTypeRef)
 
@@ -301,7 +302,7 @@ export class Parser extends CstParser {
   })
 
   // Field type: a plain type name or Unsupported("db type")
-  fieldTypeRef = this.RULE('fieldTypeRef', () => {
+  fieldTypeRef: ParserMethod<[], CstNode> = this.RULE('fieldTypeRef', () => {
     this.OR([
       {
         // Gated so that other names followed by "(" stay syntax errors.
@@ -318,7 +319,7 @@ export class Parser extends CstParser {
   })
 
   // Field attribute (@id, @unique, @db.VarChar, etc.)
-  fieldAttribute = this.RULE('fieldAttribute', () => {
+  fieldAttribute: ParserMethod<[], CstNode> = this.RULE('fieldAttribute', () => {
     this.CONSUME(At)
     this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.OPTION1(() => {
@@ -331,7 +332,7 @@ export class Parser extends CstParser {
   })
 
   // Model attribute (@@id, @@unique, etc.)
-  modelAttribute = this.RULE('modelAttribute', () => {
+  modelAttribute: ParserMethod<[], CstNode> = this.RULE('modelAttribute', () => {
     this.CONSUME(AtAt)
     this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.OPTION1(() => {
@@ -344,7 +345,7 @@ export class Parser extends CstParser {
   })
 
   // Attribute arguments
-  attributeArguments = this.RULE('attributeArguments', () => {
+  attributeArguments: ParserMethod<[], CstNode> = this.RULE('attributeArguments', () => {
     this.CONSUME(LParen)
     this.MANY_SEP({
       SEP: Comma,
@@ -356,7 +357,7 @@ export class Parser extends CstParser {
   })
 
   // Single attribute argument
-  attributeArgument = this.RULE('attributeArgument', () => {
+  attributeArgument: ParserMethod<[], CstNode> = this.RULE('attributeArgument', () => {
     // Named argument (name: value) or positional argument
     this.OPTION(() => {
       this.CONSUME(IdentifierLike, { LABEL: 'name' })
@@ -373,7 +374,7 @@ export class Parser extends CstParser {
   })
 
   // Array value for @relation attributes
-  arrayValue = this.RULE('arrayValue', () => {
+  arrayValue: ParserMethod<[], CstNode> = this.RULE('arrayValue', () => {
     this.CONSUME(LBracket)
     this.MANY_SEP({
       SEP: Comma,
@@ -384,7 +385,7 @@ export class Parser extends CstParser {
     this.CONSUME(RBracket)
   })
 
-  arrayElement = this.RULE('arrayElement', () => {
+  arrayElement: ParserMethod<[], CstNode> = this.RULE('arrayElement', () => {
     this.OR([
       { ALT: () => this.CONSUME(StringLiteral, { LABEL: 'element' }) },
       { ALT: () => this.CONSUME(NumberLiteral, { LABEL: 'element' }) },
@@ -401,7 +402,7 @@ export class Parser extends CstParser {
   })
 
   // Enum declaration
-  enumDeclaration = this.RULE('enumDeclaration', () => {
+  enumDeclaration: ParserMethod<[], CstNode> = this.RULE('enumDeclaration', () => {
     this.CONSUME(Enum)
     this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.CONSUME(LBrace)
@@ -412,7 +413,7 @@ export class Parser extends CstParser {
   })
 
   // Enum value
-  enumValue = this.RULE('enumValue', () => {
+  enumValue: ParserMethod<[], CstNode> = this.RULE('enumValue', () => {
     this.CONSUME(IdentifierLike, { LABEL: 'name' })
     this.MANY(() => {
       this.SUBRULE(this.fieldAttribute) // Enum values can have attributes
