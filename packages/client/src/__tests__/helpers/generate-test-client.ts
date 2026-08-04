@@ -1,8 +1,14 @@
 import { parseSchema } from '@ork-orm/schema-parser'
-import { mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
 import { ClientGenerator } from '../../client-generator'
+
+/**
+ * The generated client header carries a `Generated at:` timestamp, so a byte comparison
+ * against the committed fixture would differ on every run.
+ */
+const GENERATED_AT_LINE = /^(\s*\*\s*Generated at:).*$/m
 
 export interface TestClientOptions {
   schemaPath?: string
@@ -33,8 +39,16 @@ export function generateTestClient(options: TestClientOptions = {}): string {
     (dialect === 'postgresql' ? 'generated-test-client.ts' : `generated-test-client-${dialect}.ts`)
   const outputPath = join(outputDir, outputFileName)
 
-  mkdirSync(outputDir, { recursive: true })
-  writeFileSync(outputPath, generatedCode, 'utf-8')
+  // These fixtures are committed — `generated-test-client.ts` is imported directly by
+  // the type-level and query-logging suites. Rewriting unconditionally left the working
+  // tree dirty after every `pnpm test` purely from the header timestamp. Only write when
+  // the generator produced genuinely different output, so a real codegen change still
+  // shows up in the diff for review.
+  const current = existsSync(outputPath) ? readFileSync(outputPath, 'utf-8') : null
+  if (current === null || current.replace(GENERATED_AT_LINE, '$1') !== generatedCode.replace(GENERATED_AT_LINE, '$1')) {
+    mkdirSync(outputDir, { recursive: true })
+    writeFileSync(outputPath, generatedCode, 'utf-8')
+  }
 
   return outputPath
 }
