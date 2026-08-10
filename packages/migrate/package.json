@@ -25,6 +25,7 @@
     "dev": "tsup --watch",
     "build": "tsup",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "prepublishOnly": "pnpm run build"
   },
   "files": [
@@ -33,7 +34,7 @@
   ],
   "devDependencies": {
     "@swc/core": "1.11.5",
-    "@types/node": "^20.0.0",
+    "@types/node": "^24.0.0",
     "@vitest/ui": "3.2.4",
     "tsup": "^8.3.5",
     "tsx": "4.19.3",

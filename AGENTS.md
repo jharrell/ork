@@ -67,14 +67,18 @@ pnpm 11 no longer reads the `pnpm` field in `package.json`, and `.npmrc` is auth
 - Install: `pnpm install`
 - Build: `pnpm build` (= `pnpm -r build`; every package builds with `tsup`, plus `examples/vite`)
 - Lint: `pnpm lint` (`pnpm lint-fix` to autofix) — ESLint runs once from the root; no package defines its own `lint`.
-- Format: `pnpm format` (`pnpm prettier-check` in CI-style check mode)
-- Typecheck: `pnpm -r typecheck` — **build first, and it only reaches `@ork-orm/config` and
-  `unplugin-ork`.** Packages resolve each other through their built `dist/`, so on a clean tree
-  `unplugin` fails with `TS2307: Cannot find module '@ork-orm/client'` until `pnpm -r build` has run
-  (this is why CI builds before typechecking). Coverage is partial because
-  `@ork-orm/field-translator` names its script `type-check` (hyphenated, not matched) and
-  `client`, `cli`, `migrate`, `schema-parser` define none. Don't treat a green typecheck as
-  coverage; rely on `tsup`'s `dts` build instead.
+- Format: `pnpm format` (`pnpm prettier-check` in check mode). **CI does not run either** — it
+  runs `pnpm lint` only, and the pre-commit hook's `prettier --check` sees staged files alone.
+  `pnpm prettier-check` is red on a clean tree: 7 pre-existing offenders (both generated client
+  fixtures, 4 READMEs, `examples/vite/index.html`, `migrate`'s test file). Don't add to them.
+- Typecheck: `pnpm -r typecheck` — **build first.** All 7 packages define `typecheck`
+  (`tsc --noEmit`) against an identical `tsconfig.json`: `include: ["src/**/*"]`,
+  `exclude: ["node_modules", "dist", "**/__tests__/**"]`. Packages resolve each other through
+  their built `dist/`, so on a clean tree `unplugin` fails with
+  `TS2307: Cannot find module '@ork-orm/client'` until `pnpm -r build` has run (this is why CI
+  builds before typechecking). **Test files are deliberately excluded** — they carry ~193
+  pre-existing type errors (unplugin 142, client 20, migrate 17, field-translator 10, cli 4).
+  Turning that on is a separate cleanup; don't widen the `include` without fixing them.
 - Test: `pnpm test` (= `pnpm -r test`; Vitest in all 7 packages, examples have no test scripts)
 - Reset: `pnpm clean` — `git clean -fdx`, keeping `/.envrc.local` and `/sandbox`
 
@@ -220,10 +224,11 @@ still true in the current source:
 
 All verified on a clean checkout. Pre-existing — not caused by your change, and don't propagate them.
 
-- **Script naming is inconsistent** across packages (`typecheck` vs `type-check` vs absent), which
-  is why recursive typecheck under-covers.
+- **Test files are excluded from `typecheck`** (see above) — ~193 pre-existing errors, mostly
+  partial mock objects missing required AST/plugin-context properties. Vitest transpiles without
+  typechecking, so they never fail a run.
 - **`unplugin-ork` has no `publishConfig`** — the only package without one. It still publishes
   because `pnpm -r publish` passes `--access public` on the command line. Don't copy it as the template.
 - **The root package and the CLI are both named `ork`.** `pnpm --filter ork <cmd>` matches both and
   will recurse unexpectedly; use a path filter (`--filter './packages/cli'`) for the CLI.
-- **`pnpm lint` is warning-noisy** — 14 warnings, 0 errors. Keep the error count at zero.
+- **`pnpm lint` is warning-noisy** — 13 warnings, 0 errors. Keep the error count at zero.

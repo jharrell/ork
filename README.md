@@ -134,7 +134,7 @@ export default defineConfig({
 
 Ork is TypeScript-first. Follow our workspace conventions:
 
-- Node.js ≥ 20, pnpm ≥ 10.
+- Node.js ≥ 24, pnpm ≥ 11.
 - `pnpm lint`, `pnpm test`, and `pnpm build` at the workspace root before submitting changes.
 - Database-backed tests use Testcontainers (Docker required, nothing else to set up).
 

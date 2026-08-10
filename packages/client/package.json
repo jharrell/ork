@@ -21,6 +21,7 @@
     "dev": "tsup --watch",
     "build": "tsup",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "test:watch": "vitest",
     "prepublishOnly": "pnpm run build"
   },
@@ -50,7 +51,7 @@
   "devDependencies": {
     "@swc/core": "1.11.5",
     "@testcontainers/postgresql": "^10.18.0",
-    "@types/node": "^20.0.0",
+    "@types/node": "^24.0.0",
     "@types/pg": "^8.11.10",
     "@vitest/ui": "3.2.4",
     "better-sqlite3": "^12.5.0",
