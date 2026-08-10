@@ -33,6 +33,12 @@ export class MigrateCommand extends BaseCommand {
         useTransaction: true,
         validateSchema: true,
         timeout: 30000,
+        logging: {
+          level: 'info',
+          logStatements: true,
+          logExecutionTimes: true,
+          logProgress: true,
+        },
       })
 
       logger.info('Generating migration preview...')
@@ -68,22 +74,12 @@ export class MigrateCommand extends BaseCommand {
       logger.info('Applying migration...')
 
       // Apply migration with progress reporting
-      const result = await migrate.applyWithConfirmation(
-        toMigrateDb(kyselyInstance),
-        schemaPath,
-        {
-          enabled: false, // We already handled confirmation above
-          minimumRiskLevel: 'low',
-          showDetailedSummary: false,
-          requireExplicitConfirmation: false,
-        },
-        {
-          level: 'info',
-          logStatements: true,
-          logExecutionTimes: true,
-          logProgress: true,
-        },
-      )
+      const result = await migrate.applyWithConfirmation(toMigrateDb(kyselyInstance), schemaPath, {
+        enabled: false, // We already handled confirmation above
+        minimumRiskLevel: 'low',
+        showDetailedSummary: false,
+        requireExplicitConfirmation: false,
+      })
 
       // Clean up Kysely connection
       await kyselyInstance.destroy()

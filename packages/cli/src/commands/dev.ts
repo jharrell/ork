@@ -88,6 +88,12 @@ export class DevCommand extends BaseCommand {
       useTransaction: true,
       validateSchema: true,
       timeout: 30000,
+      logging: {
+        level: 'info',
+        logStatements: true,
+        logExecutionTimes: true,
+        logProgress: true,
+      },
     })
 
     try {
@@ -111,12 +117,7 @@ export class DevCommand extends BaseCommand {
         requireExplicitConfirmation: !options.yes,
       } as const
 
-      const result = await migrate.applyWithConfirmation(db, schemaPath, promptConfig, {
-        level: 'info',
-        logStatements: true,
-        logExecutionTimes: true,
-        logProgress: true,
-      })
+      const result = await migrate.applyWithConfirmation(db, schemaPath, promptConfig)
 
       if (result.success) {
         logger.success(
