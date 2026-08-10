@@ -188,7 +188,7 @@ describe('Unplugin Ork Integration', () => {
     expect(typeof plugin.load).toBe('function')
   })
 
-  it('should resolve .ork/types imports', () => {
+  it('should resolve .ork/types imports', async () => {
     const plugin = unpluginOrk.raw({
       schema: '/test/schema.prisma',
       root: '/test',
@@ -196,7 +196,7 @@ describe('Unplugin Ork Integration', () => {
 
     // Trigger buildStart to generate types
     if (plugin.buildStart) {
-      plugin.buildStart.call({})
+      await plugin.buildStart.call({})
     }
 
     const resolveId = plugin.resolveId

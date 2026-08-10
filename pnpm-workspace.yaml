@@ -1,3 +1,22 @@
 packages:
   - 'packages/*'
   - 'examples/*'
+
+# pnpm 11 replaced `onlyBuiltDependencies` with an explicit allow/deny map.
+# Only better-sqlite3 needs a real native build; everything else here is a
+# transitive dependency whose install script we have always skipped.
+allowBuilds:
+  better-sqlite3: true
+  '@swc/core': false
+  cpu-features: false
+  esbuild: false
+  protobufjs: false
+  ssh2: false
+
+# pnpm 11 defaults `minimumReleaseAge` to 1440 (1 day) as supply-chain
+# protection. Keep it, but exempt our own packages so a freshly published
+# alpha can be installed and dogfooded immediately.
+minimumReleaseAgeExclude:
+  - ork
+  - unplugin-ork
+  - '@ork-orm/*'

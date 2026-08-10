@@ -50,7 +50,7 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "*",
-    "@types/node": "^20.0.0",
+    "@types/node": "^24.0.0",
     "@types/pg": "*",
     "better-sqlite3": "^12.5.0",
     "kysely-d1": "*",
@@ -64,6 +64,6 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.0.0"
   }
 }

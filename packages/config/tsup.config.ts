@@ -15,7 +15,7 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   minify: false,
-  target: 'node18',
+  target: 'node24',
   platform: 'node',
   external: [
     // Peer dependencies - not bundled

@@ -22,7 +22,7 @@
     "unplugin-ork": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^24.0.0",
     "typescript": "^5.4.5",
     "vite": "^6.1.0"
   }

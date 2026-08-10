@@ -27,6 +27,7 @@
     "dev": "tsup --watch",
     "build": "tsup",
     "test": "vitest run",
+    "typecheck": "tsc --noEmit",
     "test:watch": "vitest",
     "ork": "tsx src/bin.ts",
     "prepublishOnly": "pnpm run build"
@@ -67,7 +68,7 @@
   },
   "devDependencies": {
     "@swc/core": "1.11.5",
-    "@types/node": "^20.0.0",
+    "@types/node": "^24.0.0",
     "@types/prompts": "^2.4.9",
     "@types/pg": "^8.11.10",
     "@types/better-sqlite3": "^7.6.11",
@@ -93,6 +94,6 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=24.0.0"
   }
 }

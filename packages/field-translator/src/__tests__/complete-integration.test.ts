@@ -6,12 +6,7 @@
 import type { FieldAST, ModelAST } from '@ork-orm/schema-parser'
 import { describe, expect, it } from 'vitest'
 
-import {
-  createFieldTranslator,
-  detectDialect,
-  generators,
-  ModelTransformationRegistry,
-} from '../index.js'
+import { createFieldTranslator, detectDialect, generators, ModelTransformationRegistry } from '../index.js'
 
 describe('Complete FieldTranslator Integration', () => {
   const mockUserModel: ModelAST = {

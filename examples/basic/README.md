@@ -16,9 +16,9 @@ This example demonstrates the high-level Prisma-like API with generated client c
 
 ## Prerequisites
 
-- Node.js >= 20
+- Node.js >= 24
 - Docker (for Testcontainers)
-- pnpm >= 10
+- pnpm >= 11
 
 ## Setup
 

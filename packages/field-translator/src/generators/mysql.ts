@@ -341,4 +341,4 @@ export class MySQLTransformationGenerator implements FieldTransformationGenerato
 /**
  * Pre-configured MySQL transformation generator instance
  */
-export const mysqlGenerator = new MySQLTransformationGenerator()
+export const mysqlGenerator: MySQLTransformationGenerator = new MySQLTransformationGenerator()

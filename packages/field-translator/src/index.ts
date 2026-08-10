@@ -63,7 +63,7 @@ Object.values(generators).forEach((generator) => {
 })
 
 // Convenient factory function for setting up the system
-export function createFieldTranslator(dialect: DatabaseDialect) {
+export function createFieldTranslator(dialect: DatabaseDialect): FieldAnalyzer {
   const generator = transformationRegistry.getGenerator(dialect)
   if (!generator) {
     throw new Error(`No transformation generator found for dialect: ${dialect}`)

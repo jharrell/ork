@@ -8,8 +8,8 @@ By participating, you agree to follow `CODE_OF_CONDUCT.md`.
 
 ## Prerequisites
 
-- Node.js >= 20
-- pnpm >= 10
+- Node.js >= 24
+- pnpm >= 11
 - Docker (only if you run database-backed tests)
 
 ## Setup

@@ -10,8 +10,8 @@ The point is **not** UI — it is the dev workflow and console output.
 
 ## Prerequisites
 
-- Node.js >= 20
-- pnpm >= 10
+- Node.js >= 24
+- pnpm >= 11
 
 ## Setup (repo local)
 

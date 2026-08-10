@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { SUPPORTED_PROVIDERS } from './constants.js'
+import { type DatabaseProvider, SUPPORTED_PROVIDERS } from './constants.js'
 
 /**
  * Search order used when `schema` isn't explicitly configured. `./schema.prisma` stays
@@ -9,9 +9,26 @@ import { SUPPORTED_PROVIDERS } from './constants.js'
 export const DEFAULT_SCHEMA_SEARCH_PATHS = ['./schema.prisma', 'prisma/schema.prisma'] as const
 
 /**
- * Ork configuration schema
+ * Ork configuration schema.
+ *
+ * The type annotation is written out rather than inferred: JSR's "slow types" check
+ * rejects exported symbols whose type has to be inferred from an initializer, and an
+ * un-annotated `z.object(...)` is exactly that. Keep this in sync with the shape below.
  */
-export const OrkConfigSchema = z.object({
+export const OrkConfigSchema: z.ZodObject<{
+  datasource: z.ZodObject<{
+    provider: z.ZodEnum<[DatabaseProvider, ...DatabaseProvider[]]>
+    url: z.ZodString
+    shadowDatabaseUrl: z.ZodOptional<z.ZodString>
+  }>
+  generator: z.ZodOptional<
+    z.ZodObject<{
+      provider: z.ZodDefault<z.ZodString>
+      output: z.ZodDefault<z.ZodString>
+    }>
+  >
+  schema: z.ZodDefault<z.ZodString>
+}> = z.object({
   datasource: z.object({
     provider: z.enum(SUPPORTED_PROVIDERS),
     url: z.string(),
