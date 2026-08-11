@@ -15,6 +15,7 @@ model User {
   name      String?
   score     BigInt   @default(0)
   createdAt DateTime @default(now())
+  publishedAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   posts     Post[]
   profile   Profile?

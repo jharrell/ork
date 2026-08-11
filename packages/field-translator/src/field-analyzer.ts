@@ -58,6 +58,15 @@ export class FieldAnalyzer {
   }
 
   /**
+   * Whether the target dialect can translate this field's type. Enums, Bytes,
+   * and unknown/typo'd scalar types return false; callers use this to fail
+   * loudly instead of emitting a client that lies or does not compile.
+   */
+  supportsField(field: FieldAST): boolean {
+    return this.generator.supportsField(field)
+  }
+
+  /**
    * Analyze all fields in a model
    */
   analyzeModel(model: ModelAST): ModelTransformationMetadata {

@@ -89,7 +89,7 @@ export class SQLiteTransformationGenerator implements FieldTransformationGenerat
       create: `${variableName} ? 1 : 0`,
       update: `${variableName} ? 1 : 0`,
       where: `${variableName} ? 1 : 0`,
-      select: `${variableName} === 1`,
+      select: `Boolean(${variableName})`,
     }
 
     return {
@@ -124,9 +124,7 @@ export class SQLiteTransformationGenerator implements FieldTransformationGenerat
         ? `${variableName} ? (${variableName} instanceof Date ? ${variableName}.toISOString() : new Date(${variableName} as string | number).toISOString()) : null`
         : `${variableName} instanceof Date ? ${variableName}.toISOString() : new Date(${variableName} as string | number).toISOString()`,
 
-      select: isOptional
-        ? `${variableName} ? new Date(${variableName} as string | number) : null`
-        : `new Date(${variableName} as string | number)`,
+      select: isOptional ? `${variableName} ? new Date(${variableName}) : null` : `new Date(${variableName})`,
     }
 
     return {

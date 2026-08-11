@@ -189,4 +189,26 @@ describe('SQLite client integration', () => {
 
     expect(rollbackUser).toBeNull()
   })
+
+  it('accepts an explicit value for a DateTime @default field and defaults only when absent', async () => {
+    const explicit = new Date('2020-01-02T03:04:05.000Z')
+
+    const withExplicit = await testEnv.client.user.create({
+      data: { email: 'sqlite-published-explicit@example.com', publishedAt: explicit },
+    })
+    expect(withExplicit.publishedAt).toBeInstanceOf(Date)
+    expect(withExplicit.publishedAt.toISOString()).toBe('2020-01-02T03:04:05.000Z')
+
+    const withDefault = await testEnv.client.user.create({
+      data: { email: 'sqlite-published-default@example.com' },
+    })
+    expect(withDefault.publishedAt).toBeInstanceOf(Date)
+    expect(withDefault.publishedAt.getTime()).toBeGreaterThan(0)
+  })
+
+  it('throws on an unrecognized relation-filter shape instead of matching all rows', async () => {
+    await expect(testEnv.client.user.findMany({ where: { posts: { title: 'no such shape' } } })).rejects.toThrow(
+      /Unsupported filter shape for relation "posts"/,
+    )
+  })
 })

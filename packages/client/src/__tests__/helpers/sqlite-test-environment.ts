@@ -39,6 +39,7 @@ async function applySqliteSchema(kysely: Kysely<any>) {
       name TEXT,
       score TEXT NOT NULL DEFAULT '0',
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "publishedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `.execute(kysely)

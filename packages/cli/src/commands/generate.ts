@@ -11,6 +11,7 @@ import type { CommandResult, GenerateOptions } from '../types.js'
 import { BaseCommand } from '../utils/command.js'
 import { cliLoadOrkConfig } from '../utils/config-error-handler.js'
 import { logger } from '../utils/logger.js'
+import { typecheckGeneratedClient } from '../utils/typecheck.js'
 
 /**
  * Client generation command that integrates with schema parser
@@ -55,6 +56,28 @@ export class GenerateCommand extends BaseCommand {
 
       // Write client file with pre-compiled operations
       const clientFile = await this.writeGeneratedClientFile(resolvedOutputDir, schemaAST)
+
+      // Fail loudly when the emitted client does not typecheck. Exiting
+      // zero on broken output — e.g. undeclared enum types from an unsupported
+      // field — is an honesty bug: a generated client that cannot compile is
+      // not a successful generation.
+      spinner.text = 'Typechecking generated client...'
+      const typecheck = await typecheckGeneratedClient(clientFile)
+
+      if (!typecheck.ok) {
+        spinner.fail('Generated client failed to typecheck')
+        const plural = typecheck.errorCount === 1 ? 'error' : 'errors'
+        logger.error(`Generated client at ${clientFile} has ${typecheck.errorCount} type ${plural}:`)
+        console.error(typecheck.formatted)
+        return {
+          success: false,
+          message: `Generated client failed to typecheck (${typecheck.errorCount} type ${plural})`,
+        }
+      }
+
+      if (typecheck.skipped) {
+        logger.warn('Skipped typecheck of generated client: TypeScript is not installed')
+      }
 
       spinner.succeed('Client generation completed successfully!')
 
@@ -113,6 +136,17 @@ export class GenerateCommand extends BaseCommand {
         esModules: true,
         config: orkConfig,
       })
+
+      // Fail loudly on schema features the generator can't emit correctly yet —
+      // unsupported field types (enums/Bytes/typos), scalar list fields, and
+      // implicit many-to-many relations. This runs before
+      // codegen and is independent of the tsc gate below, so it catches
+      // silent-corruption cases and works even when TypeScript is not installed.
+      const unsupported = clientGenerator.getUnsupportedFields()
+      if (unsupported.length > 0) {
+        const list = unsupported.map((u) => `  - ${u.model}.${u.field}: ${u.reason}`).join('\n')
+        throw new Error(`Unsupported schema features — generation aborted:\n${list}`)
+      }
 
       const clientContent = clientGenerator.generateClientModule()
       logger.debug(`Client module generated, length: ${clientContent.length}`)

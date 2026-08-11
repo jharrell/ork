@@ -119,14 +119,44 @@ describe('ClientGenerator', () => {
     expect(output).toContain('transformWhereValue_')
   })
 
-  it('should include timestamp logic', () => {
-    const generator = new ClientGenerator(mockSchema)
-    const output = generator.generateClientModule()
+  it('keys timestamp defaults on attributes, not field names', () => {
+    const schema: SchemaAST = {
+      models: [
+        {
+          name: 'Post',
+          fields: [
+            { name: 'id', fieldType: 'Int', isOptional: false, isList: false, attributes: [{ name: 'id', args: [] }] },
+            { name: 'title', fieldType: 'String', isOptional: false, isList: false, attributes: [] },
+            {
+              name: 'createdAt',
+              fieldType: 'DateTime',
+              isOptional: false,
+              isList: false,
+              attributes: [{ name: 'default', args: [] }],
+            },
+            {
+              name: 'updatedAt',
+              fieldType: 'DateTime',
+              isOptional: false,
+              isList: false,
+              attributes: [{ name: 'updatedAt', args: [] }],
+            },
+          ],
+          attributes: [],
+        },
+      ],
+      enums: [],
+      generators: [],
+      datasources: [],
+    }
+    const output = new ClientGenerator(schema).generateClientModule()
 
-    // Should auto-generate timestamps
-    expect(output).toContain(
-      'prepared.createdAt = data.createdAt ? new Date(data.createdAt) : new Date().toISOString()',
-    )
+    // @default(now()) fills in only when the caller passed no value (explicit wins).
+    expect(output).toContain('if (data.createdAt === undefined) { prepared.createdAt = new Date().toISOString() }')
+    // @updatedAt is always refreshed by the client.
+    expect(output).toContain('prepared.updatedAt = new Date().toISOString()')
+    // The old field-name-based hack is gone.
+    expect(output).not.toContain('data.createdAt ? new Date(data.createdAt)')
   })
 
   it('should generate client class with model operations', () => {

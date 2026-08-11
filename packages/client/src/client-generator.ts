@@ -317,12 +317,6 @@ export class ClientGenerator {
       .map((field) => field.name)
   }
 
-  private isAutoTimestamp(field: FieldAST): boolean {
-    return field.attributes.some((attr) => {
-      return attr.name === 'updatedAt' || (field.fieldType === 'DateTime' && attr.name === 'default')
-    })
-  }
-
   /**
    * Map Prisma field type to TypeScript type
    */
@@ -348,6 +342,70 @@ export class ClientGenerator {
 
     // Fallback to string for unknown types
     return 'string'
+  }
+
+  /**
+   * Schema features the generator cannot emit a correct, type-safe client for
+   * yet: unsupported scalar types (enums, Bytes, typos), scalar list fields
+   * (would silently corrupt on write), and implicit many-to-many relations
+   * (would emit nonsense SQL). Callers fail generation loudly on these rather
+   * than emitting a client that lies, corrupts data, or does not compile.
+   */
+  getUnsupportedFields(): Array<{ model: string; field: string; reason: string }> {
+    const modelNames = new Set(this.schemaAST.models.map((m) => m.name))
+    const unsupported: Array<{ model: string; field: string; reason: string }> = []
+
+    for (const model of this.schemaAST.models) {
+      for (const field of model.fields) {
+        if (modelNames.has(field.fieldType)) {
+          // Relation field. Implicit many-to-many (list on both sides, no join
+          // model) is not supported — the generator would compare the two PKs
+          // directly and return silently wrong rows.
+          if (this.isImplicitManyToMany(model, field)) {
+            unsupported.push({
+              model: model.name,
+              field: field.name,
+              reason: 'implicit many-to-many relations are not yet supported',
+            })
+          }
+          continue
+        }
+
+        // Scalar list fields (e.g. String[]) have no correct storage/transform
+        // yet; writing them silently corrupts data, so refuse loudly.
+        if (field.isList) {
+          unsupported.push({
+            model: model.name,
+            field: field.name,
+            reason: `scalar list fields (${field.fieldType}[]) are not yet supported`,
+          })
+          continue
+        }
+
+        if (!this.fieldTranslator.supportsField(field)) {
+          unsupported.push({
+            model: model.name,
+            field: field.name,
+            reason: `field type '${field.fieldType}' is not supported for the '${this.dialect}' dialect`,
+          })
+        }
+      }
+    }
+
+    return unsupported
+  }
+
+  /**
+   * An implicit many-to-many relation: a list relation whose related model
+   * also points back with a list relation (no explicit join model / FK).
+   */
+  private isImplicitManyToMany(model: ModelAST, field: FieldAST): boolean {
+    if (!field.isList) return false
+
+    const relatedModel = this.findModelByName(field.fieldType)
+    if (!relatedModel) return false
+
+    return this.getModelRelations(relatedModel).some((r) => r.relatedModel === model.name && r.isArray)
   }
 
   private generateDatabaseSchemaInterface(): string {
@@ -1281,7 +1339,7 @@ ${includeFields}
           return dedent`
             case '${rel.fieldName}': {
               if (value === null || typeof value !== 'object') {
-                return eb.and([])
+                throw new Error('Unsupported filter for relation "${rel.fieldName}": expected an object with some, every, or none')
               }
 
               const filter = value as { some?: ${relatedModel.name}WhereInput; every?: ${relatedModel.name}WhereInput; none?: ${relatedModel.name}WhereInput }
@@ -1314,6 +1372,10 @@ ${includeFields}
                 )
               }
 
+              if (conditions.length === 0) {
+                throw new Error('Unsupported filter shape for relation "${rel.fieldName}": expected some, every, or none. Relation-filter shorthand is not yet supported.')
+              }
+
               return eb.and(conditions)
             }
           `
@@ -1327,8 +1389,8 @@ ${includeFields}
               return eb.not(eb.exists(baseQuery()))
             }
 
-            if (value === null || typeof value !== 'object') {
-              return eb.and([])
+            if (typeof value !== 'object') {
+              throw new Error('Unsupported filter for relation "${rel.fieldName}": expected null or an object with is or isNot')
             }
 
             const filter = value as { is?: ${relatedModel.name}WhereInput | null; isNot?: ${relatedModel.name}WhereInput | null }
@@ -1356,6 +1418,10 @@ ${includeFields}
                 )
                 conditions.push(eb.and([existsAny, eb.not(existsMatch)]))
               }
+            }
+
+            if (conditions.length === 0) {
+              throw new Error('Unsupported filter shape for relation "${rel.fieldName}": expected is or isNot. Relation-filter shorthand is not yet supported.')
             }
 
             return eb.and(conditions)
@@ -1468,7 +1534,7 @@ ${includeFields}
         switch (field) {
           ${relationSwitchCases}
           default:
-            return eb.and([])
+            throw new Error('Unknown relation "' + field + '" in where clause')
         }
       }
 
@@ -1519,11 +1585,13 @@ ${includeFields}
           return null
         }
 
-        // Skip certain fields in creates and updates
+        // Skip fields the client manages or that are not real columns: the
+        // primary key and @updatedAt (always set below, keyed on the attribute
+        // not the field name).
         const isCreateOrUpdate = operation === 'update' || operation === 'create'
         const isPrimaryKey = this.isPrimaryKey(field)
-        const isAutoTimestamp = this.isAutoTimestamp(field)
-        if (isCreateOrUpdate && (isPrimaryKey || isAutoTimestamp)) {
+        const isUpdatedAt = field.attributes.some((attr) => attr.name === 'updatedAt')
+        if (isCreateOrUpdate && (isPrimaryKey || isUpdatedAt)) {
           return null
         }
 
@@ -1560,22 +1628,30 @@ ${includeFields}
       })
       .filter(Boolean)
 
-    // Add timestamp handling for create/update
+    // Managed DateTime defaults for create/update, keyed on attributes and
+    // never field names. @updatedAt is always refreshed by the client on
+    // every write; a plain @default fills in only when the caller passed no
+    // value, so an explicit value always wins (handled by the loop above).
     if (operation === 'create' || operation === 'update') {
-      const hasCreatedAt = model.fields.some((f) => f.name === 'createdAt')
-      const hasUpdatedAt = model.fields.some((f) => f.name === 'updatedAt')
-
+      const nowExpr = this.dialect === 'postgresql' ? 'new Date()' : 'new Date().toISOString()'
       let logic = ''
 
-      if (operation === 'create' && hasCreatedAt) {
-        logic += 'prepared.createdAt = data.createdAt ? new Date(data.createdAt) : new Date().toISOString()\n'
+      for (const field of model.fields) {
+        if (field.fieldType !== 'DateTime') continue
+
+        const isUpdatedAt = field.attributes.some((attr) => attr.name === 'updatedAt')
+        const hasDefault = field.attributes.some((attr) => attr.name === 'default')
+
+        if (isUpdatedAt) {
+          logic += `prepared.${field.name} = ${nowExpr}\n`
+        } else if (hasDefault && operation === 'create') {
+          logic += `if (data.${field.name} === undefined) { prepared.${field.name} = ${nowExpr} }\n`
+        }
       }
 
-      if (hasUpdatedAt) {
-        logic += 'prepared.updatedAt = new Date().toISOString()'
+      if (logic) {
+        transformations.push(logic)
       }
-
-      transformations.push(logic)
     }
 
     // Add fallback for where operation

@@ -51,7 +51,14 @@ jobs:
       - name: CLI Help
         run: node packages/cli/dist/bin.js --help
 
-      - name: CLI Generate (Vite demo)
+      # `ork generate` typechecks its own emitted client and exits nonzero on
+      # any type error, so generating both fixtures here IS the dual-dialect
+      # `tsc --strict` gate for generated clients.
+      # PostgreSQL config validation requires a datasource URL even to generate;
+      # any syntactically valid URL works for codegen alone.
+      - name: CLI Generate (dual-dialect typecheck gate)
         run: |
           cd examples/vite
           node ../../packages/cli/dist/bin.js generate
+          cd ../basic
+          DATABASE_URL="postgresql://user:pass@localhost:5432/db" node ../../packages/cli/dist/bin.js generate
