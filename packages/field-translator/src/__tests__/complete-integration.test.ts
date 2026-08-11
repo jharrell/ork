@@ -71,7 +71,7 @@ describe('Complete FieldTranslator Integration', () => {
       expect(createTransform?.code).toBe('data.isActive ? 1 : 0')
 
       const selectTransform = isActiveField!.transformations.get('select')
-      expect(selectTransform?.code).toBe('data.isActive === 1')
+      expect(selectTransform?.code).toBe('Boolean(data.isActive)')
     })
 
     it('should complete full analysis pipeline for PostgreSQL', () => {

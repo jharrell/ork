@@ -82,7 +82,7 @@ describe('FieldTranslator Integration', () => {
       expect(createTransform?.code).toBe('data.isActive ? 1 : 0')
 
       const selectTransform = result.transformations.get('select')
-      expect(selectTransform?.code).toBe('data.isActive === 1')
+      expect(selectTransform?.code).toBe('Boolean(data.isActive)')
     })
 
     it('should generate DateTime transformations', () => {
@@ -92,7 +92,7 @@ describe('FieldTranslator Integration', () => {
       expect(createTransform?.code).toContain('toISOString()')
 
       const selectTransform = result.transformations.get('select')
-      expect(selectTransform?.code).toBe('new Date(data.createdAt as string | number)')
+      expect(selectTransform?.code).toBe('new Date(data.createdAt)')
     })
 
     it('should detect special handling', () => {

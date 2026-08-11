@@ -22,6 +22,7 @@ export default defineConfig({
     'mysql2',
     'better-sqlite3',
     'kysely-d1',
+    'typescript',
   ],
   minify: false,
   splitting: false,
