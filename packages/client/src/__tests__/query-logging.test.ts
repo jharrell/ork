@@ -1,10 +1,9 @@
-import { PostgresDialect } from 'kysely'
-import { Pool } from 'pg'
+import type { Dialect } from 'kysely'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { createOrkClient } from './fixtures/generated-test-client'
+import { adapters, type DialectContext } from './helpers/dialects'
 import { seedTestData } from './helpers/seed'
-import { setupTestDatabase, type TestEnvironment } from './helpers/test-container'
 
 /**
  * Tests for Query Logging
@@ -15,28 +14,17 @@ import { setupTestDatabase, type TestEnvironment } from './helpers/test-containe
  * - Leverages Kysely's built-in logging (includes duration, SQL, params)
  */
 describe('Query Logging', () => {
-  let testEnv: TestEnvironment
-  let pool: Pool
-  let dialect: PostgresDialect
+  let env: DialectContext
+  let dialect: Dialect
 
   beforeAll(async () => {
-    testEnv = await setupTestDatabase()
-    await seedTestData(testEnv.kysely)
-
-    // Extract pool and dialect for creating clients with logging
-    pool = new Pool({
-      host: testEnv.container.getHost(),
-      port: testEnv.container.getPort(),
-      database: testEnv.container.getDatabase(),
-      user: testEnv.container.getUsername(),
-      password: testEnv.container.getPassword(),
-    })
-    dialect = new PostgresDialect({ pool })
+    env = await adapters.postgresql.setup()
+    await seedTestData(env.client)
+    dialect = env.kyselyDialect
   })
 
   afterAll(async () => {
-    await pool.end()
-    await testEnv.cleanup()
+    await env.cleanup()
   })
 
   describe('Log levels', () => {
