@@ -43,7 +43,12 @@ jobs:
       - name: JSR slow-types check
         run: pnpm --workspace-concurrency=1 --filter './packages/*' --filter '!ork' exec npx jsr publish --dry-run --allow-dirty
 
-      # Includes the PostgreSQL Testcontainers suites; Docker is preinstalled
+      # Runs every package's Vitest suite. For @ork-orm/client this includes the
+      # dual-dialect conformance harness (src/__tests__/corpus/*.matrix.test.ts):
+      # one shared schema.prisma, generated once per dialect in globalSetup, run
+      # against real PostgreSQL (Testcontainers) and in-memory SQLite. This is the
+      # mechanical enforcement of alpha.3's "correct or loud" DoD (ork-tracker#52);
+      # every alpha.3 bugfix must land with its corpus case. Docker is preinstalled
       # on GitHub's ubuntu runners.
       - name: Test
         run: pnpm -r test

@@ -1,4 +1,4 @@
-import { Kysely, sql } from 'kysely'
+import type { OrkTestClient } from './dialects'
 
 export interface SeedData {
   users: Array<{ id: number; email: string; name: string | null }>
@@ -7,68 +7,51 @@ export interface SeedData {
 }
 
 /**
- * Seed the test database with consistent data
+ * Seed the canonical conformance dataset through the generated client (not raw
+ * Kysely), so per-dialect field transforms are applied — notably booleans, which
+ * better-sqlite3 refuses to bind as JS `true`/`false`. This keeps the seed
+ * dialect-agnostic across PostgreSQL and SQLite.
  */
-export async function seedTestData(kysely: Kysely<any>): Promise<SeedData> {
-  // Create users
-  const users = await kysely
-    .insertInto('User')
-    .values([
-      { email: 'alice@example.com', name: 'Alice' },
-      { email: 'bob@example.com', name: 'Bob' },
-      { email: 'charlie@example.com', name: null },
-    ])
-    .returning(['id', 'email', 'name'])
-    .execute()
+export async function seedTestData(client: OrkTestClient): Promise<SeedData> {
+  const alice = await client.user.create({ data: { email: 'alice@example.com', name: 'Alice' } })
+  const bob = await client.user.create({ data: { email: 'bob@example.com', name: 'Bob' } })
+  const charlie = await client.user.create({ data: { email: 'charlie@example.com' } })
 
-  // Create profiles
-  const profiles = await kysely
-    .insertInto('Profile')
-    .values([
-      { userId: users[0].id, bio: 'Software developer from San Francisco' },
-      { userId: users[1].id, bio: null },
-    ])
-    .returning(['id', 'bio', 'userId'])
-    .execute()
+  const users = [alice, bob, charlie].map((u) => ({ id: u.id, email: u.email, name: u.name ?? null }))
 
-  // Create posts
-  const posts = await kysely
-    .insertInto('Post')
-    .values([
-      {
-        title: 'Getting Started with TypeScript',
-        content: 'TypeScript is great for type safety...',
-        published: true,
-        authorId: users[0].id,
-      },
-      {
-        title: 'Advanced Prisma Patterns',
-        content: 'Learn about advanced querying...',
-        published: true,
-        authorId: users[0].id,
-      },
-      {
-        title: 'Draft Post',
-        content: 'This is a draft...',
-        published: false,
-        authorId: users[0].id,
-      },
-      {
-        title: "Bob's First Post",
-        content: 'Hello world!',
-        published: true,
-        authorId: users[1].id,
-      },
-    ])
-    .returning(['id', 'title', 'content', 'published', 'authorId'])
-    .execute()
+  const aliceProfile = await client.profile.create({
+    data: { userId: alice.id, bio: 'Software developer from San Francisco' },
+  })
+  const bobProfile = await client.profile.create({ data: { userId: bob.id } })
 
-  return { users, profiles, posts }
-}
+  const profiles = [aliceProfile, bobProfile].map((p) => ({ id: p.id, bio: p.bio ?? null, userId: p.userId }))
 
-/**
- * Clear all data from the test database
- */
-export async function clearTestData(kysely: Kysely<any>) {
-  await sql`TRUNCATE TABLE "Post", "Profile", "User" RESTART IDENTITY CASCADE`.execute(kysely)
+  const created = []
+  for (const data of [
+    {
+      title: 'Getting Started with TypeScript',
+      content: 'TypeScript is great for type safety...',
+      published: true,
+      authorId: alice.id,
+    },
+    {
+      title: 'Advanced Prisma Patterns',
+      content: 'Learn about advanced querying...',
+      published: true,
+      authorId: alice.id,
+    },
+    { title: 'Draft Post', content: 'This is a draft...', published: false, authorId: alice.id },
+    { title: "Bob's First Post", content: 'Hello world!', published: true, authorId: bob.id },
+  ]) {
+    const post = await client.post.create({ data })
+    created.push({
+      id: post.id,
+      title: post.title,
+      content: post.content ?? null,
+      published: post.published,
+      authorId: post.authorId,
+    })
+  }
+
+  return { users, profiles, posts: created }
 }
