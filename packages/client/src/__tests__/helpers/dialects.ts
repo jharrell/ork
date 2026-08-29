@@ -134,6 +134,7 @@ async function applyPostgresSchema(kysely: TestKysely): Promise<void> {
     CREATE TABLE "Profile" (
       id SERIAL PRIMARY KEY,
       bio TEXT,
+      settings JSONB,
       "userId" INTEGER UNIQUE NOT NULL,
       FOREIGN KEY ("userId") REFERENCES "User"(id) ON DELETE CASCADE
     )
@@ -144,6 +145,7 @@ async function applyPostgresSchema(kysely: TestKysely): Promise<void> {
       id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,
       content TEXT,
+      metadata JSONB,
       published BOOLEAN NOT NULL DEFAULT false,
       "authorId" INTEGER NOT NULL,
       "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -181,6 +183,7 @@ async function applySqliteSchema(kysely: TestKysely): Promise<void> {
     CREATE TABLE "Profile" (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       bio TEXT,
+      settings TEXT,
       "userId" INTEGER UNIQUE NOT NULL,
       FOREIGN KEY ("userId") REFERENCES "User"(id) ON DELETE CASCADE
     )
@@ -191,6 +194,7 @@ async function applySqliteSchema(kysely: TestKysely): Promise<void> {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
       content TEXT,
+      metadata TEXT,
       published BOOLEAN NOT NULL DEFAULT 0,
       "authorId" INTEGER NOT NULL,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

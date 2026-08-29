@@ -57,4 +57,29 @@ defineCorpus('relation null scalars', { seed: true }, [
       }
     },
   },
+  {
+    name: 'parses Json columns inside an included to-one payload (#11)',
+    run: async ({ client }) => {
+      const users = await client.user.findMany({ include: { profile: true } })
+      const alice = users.find((u) => u.email === 'alice@example.com')
+      const bob = users.find((u) => u.email === 'bob@example.com')
+
+      // SQLite stores Json as TEXT: a raw passthrough would arrive as a string.
+      expect(alice?.profile?.settings).toEqual({ theme: 'dark', notifications: true })
+      // Null Json must survive the parse transform, not become 'null' or throw.
+      expect(bob?.profile?.settings).toBeNull()
+    },
+  },
+  {
+    name: 'parses Json columns inside included to-many payloads (#11)',
+    run: async ({ client }) => {
+      const users = await client.user.findMany({ include: { posts: true } })
+      const alice = users.find((u) => u.email === 'alice@example.com')
+
+      const tsPost = alice?.posts.find((p) => p.title === 'Getting Started with TypeScript')
+      const draft = alice?.posts.find((p) => p.title === 'Draft Post')
+      expect(tsPost?.metadata).toEqual({ tags: ['typescript', 'intro'], wordCount: 1500 })
+      expect(draft?.metadata).toBeNull()
+    },
+  },
 ])
