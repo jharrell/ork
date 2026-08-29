@@ -30,7 +30,7 @@ export async function seedTestData(client: OrkTestClient): Promise<SeedData> {
 
   const profiles = [aliceProfile, bobProfile].map((p) => ({ id: p.id, bio: p.bio ?? null, userId: p.userId }))
 
-  const created = []
+  const created: SeedData['posts'] = []
   for (const data of [
     {
       title: 'Getting Started with TypeScript',
