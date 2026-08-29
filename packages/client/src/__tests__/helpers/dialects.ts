@@ -17,6 +17,7 @@ export interface TestDatabase {
   User: Record<string, unknown>
   Profile: Record<string, unknown>
   Post: Record<string, unknown>
+  ApiKey: Record<string, unknown>
 }
 export type TestKysely = Kysely<TestDatabase>
 
@@ -150,6 +151,13 @@ async function applyPostgresSchema(kysely: TestKysely): Promise<void> {
       FOREIGN KEY ("authorId") REFERENCES "User"(id) ON DELETE CASCADE
     )
   `.execute(kysely)
+
+  await sql`
+    CREATE TABLE "ApiKey" (
+      id TEXT PRIMARY KEY,
+      label TEXT NOT NULL
+    )
+  `.execute(kysely)
 }
 
 /**
@@ -188,6 +196,13 @@ async function applySqliteSchema(kysely: TestKysely): Promise<void> {
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY ("authorId") REFERENCES "User"(id) ON DELETE CASCADE
+    )
+  `.execute(kysely)
+
+  await sql`
+    CREATE TABLE "ApiKey" (
+      id TEXT PRIMARY KEY,
+      label TEXT NOT NULL
     )
   `.execute(kysely)
 }

@@ -729,17 +729,6 @@ export class ClientGenerator {
       return true
     }
 
-    // Exclude auto-generated ID fields: @id @default(autoincrement())
-    const hasIdAttribute = field.attributes?.some((attr) => attr.name === 'id')
-    const hasAutoIncrement = field.attributes?.some(
-      (attr) =>
-        attr.name === 'default' &&
-        attr.args?.some((arg) => arg.value === 'autoincrement' || String(arg.value).includes('autoincrement')),
-    )
-    if (hasIdAttribute && hasAutoIncrement) {
-      return true
-    }
-
     // // Exclude fields with @default(now()) - typically timestamps
     // const hasDefaultNow = field.attributes?.some(
     //   (attr) =>
@@ -806,17 +795,6 @@ export class ClientGenerator {
 
       // Exclude @updatedAt fields (automatically managed)
       if (field.attributes?.some((attr) => attr.name === 'updatedAt')) {
-        continue
-      }
-
-      // Exclude @id @default(autoincrement()) fields (can't update primary key)
-      const hasIdAttribute = field.attributes?.some((attr) => attr.name === 'id')
-      const hasAutoIncrement = field.attributes?.some(
-        (attr) =>
-          attr.name === 'default' &&
-          attr.args?.some((arg) => arg.value === 'autoincrement' || String(arg.value).includes('autoincrement')),
-      )
-      if (hasIdAttribute && hasAutoIncrement) {
         continue
       }
 
@@ -1585,13 +1563,13 @@ ${includeFields}
           return null
         }
 
-        // Skip fields the client manages or that are not real columns: the
-        // primary key and @updatedAt (always set below, keyed on the attribute
-        // not the field name).
+        // @updatedAt is client-managed (always set below). Everything else —
+        // including @id — passes through: a @default id is optional, not
+        // forbidden, and the `!== undefined` guard leaves omitted ids to the
+        // database default (#54).
         const isCreateOrUpdate = operation === 'update' || operation === 'create'
-        const isPrimaryKey = this.isPrimaryKey(field)
         const isUpdatedAt = field.attributes.some((attr) => attr.name === 'updatedAt')
-        if (isCreateOrUpdate && (isPrimaryKey || isUpdatedAt)) {
+        if (isCreateOrUpdate && isUpdatedAt) {
           return null
         }
 
