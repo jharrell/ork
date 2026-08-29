@@ -1420,7 +1420,7 @@ ${includeFields}
     const comparisonCastBlock = whereCastFields.length
       ? `const comparisonCast_${modelName}: Record<string, true> = { ${whereCastFields
           .map((n) => `'${n}': true`)
-          .join(', ')} }\n\n`
+          .join(', ')} }\n`
       : ''
     const comparisonFieldBlock =
       whereCastFields.length && whereCastTemplate
@@ -1891,32 +1891,33 @@ export async function createClient(): Promise<OrkClient> {
         if (!rel.isArray) {
           const relatedFields = relatedModel.fields
             .filter((f) => !this.getModelRelations(relatedModel).some((r) => r.fieldName === f.name))
-            .map((f) => {
-              const transformation = this.generateSelectTransform(f, `row.${rel.fieldName}_${f.name}`)
-              return `      ${f.name}: ${transformation}`
-            })
+            .map((f) => `${f.name}: ${this.generateSelectTransform(f, `row.${rel.fieldName}_${f.name}`)}`)
             .join(',\n')
 
-          return dedent`const ${rel.fieldName}Relation = relations.find(r => r.field === '${
-            rel.fieldName
-          }' && r.type === 'one')
-    if (${rel.fieldName}Relation) {
-      // Check if the relation has data (not all fields are null)
-      const hasData = row[\`\${${rel.fieldName}Relation.prefix}${relatedModel.fields[0]?.name || 'id'}\`] !== null
-      result.${rel.fieldName} = hasData ? {
-${relatedFields}
-      } : null
-    }`
+          return dedent.withOptions({ alignValues: true })`
+            const ${rel.fieldName}Relation = relations.find(r => r.field === '${rel.fieldName}' && r.type === 'one')
+            if (${rel.fieldName}Relation) {
+              // Check if the relation has data (not all fields are null)
+              const hasData = row[\`\${${rel.fieldName}Relation.prefix}${
+            relatedModel.fields[0]?.name || 'id'
+          }\`] !== null
+              result.${rel.fieldName} = hasData ? {
+                ${relatedFields}
+              } : null
+            }
+          `
         }
 
         // One-to-many relation (fetched separately)
         if (rel.isArray) {
           const pkField = this.getPrimaryKeyField(model)
           const foreignKeyField = this.getForeignKeyForRelation(relatedModel, model.name)
-          return dedent`const ${rel.fieldName}Relation = relations.find(r => r.field === '${rel.fieldName}' && r.type === 'many')
-    if (${rel.fieldName}Relation && relatedData['${rel.fieldName}']) {
-      result.${rel.fieldName} = relatedData['${rel.fieldName}'].filter((r: any) => r['${foreignKeyField}'] === result.${pkField}) || []
-    }`
+          return dedent.withOptions({ alignValues: true })`
+            const ${rel.fieldName}Relation = relations.find(r => r.field === '${rel.fieldName}' && r.type === 'many')
+            if (${rel.fieldName}Relation && relatedData['${rel.fieldName}']) {
+              result.${rel.fieldName} = relatedData['${rel.fieldName}'].filter((r: any) => r['${foreignKeyField}'] === result.${pkField}) || []
+            }
+          `
         }
 
         return ''
