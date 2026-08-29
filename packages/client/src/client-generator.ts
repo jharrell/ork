@@ -203,7 +203,7 @@ export class ClientGenerator {
           /**
            * Get the return type for ${modelName} (no relations available)
            */
-          export type ${modelName}GetPayload<T extends { include?: Record<string, never> } | undefined | null = undefined> = ${modelName}Scalars
+          export type ${modelName}GetPayload<T = unknown> = ${modelName}Scalars
         `)
       }
 
@@ -815,7 +815,10 @@ ${fields.join('\n')}
    * Generate Args types for all CRUD operations
    */
   private generateArgsTypes(model: ModelAST): string {
+    // Models with no relations get no `XInclude` interface (see
+    // generateCRUDInterfaces), so the args types must not reference one.
     const includeType = `${model.name}Include`
+    const includeLine = this.getModelRelations(model).length > 0 ? `include?: ${includeType}` : ''
 
     return dedent`
       // Args types for ${model.name}
@@ -824,18 +827,18 @@ ${fields.join('\n')}
         orderBy?: ${model.name}OrderByWithRelationInput | ${model.name}OrderByWithRelationInput[]
         take?: number
         skip?: number
-        include?: ${includeType}
+        ${includeLine}
       }
 
       export type ${model.name}FindUniqueArgs = {
         where: ${model.name}WhereUniqueInput
-        include?: ${includeType}
+        ${includeLine}
       }
 
       export type ${model.name}FindFirstArgs = {
         where?: ${model.name}WhereInput
         orderBy?: ${model.name}OrderByWithRelationInput | ${model.name}OrderByWithRelationInput[]
-        include?: ${includeType}
+        ${includeLine}
       }
 
       export type ${model.name}CreateArgs = {
