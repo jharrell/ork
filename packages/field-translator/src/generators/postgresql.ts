@@ -89,8 +89,7 @@ export class PostgreSQLTransformationGenerator implements FieldTransformationGen
   }
 
   generateComparisonReference(_field: FieldAST): string | null {
-    // Native numeric column types (including bigint) compare and sort correctly
-    // without coercion; the raw column reference is used as-is.
+    // No coercion needed for PostgreSQL
     return null
   }
 

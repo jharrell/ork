@@ -57,12 +57,3 @@ pnpm demo:postgres
 
 - Keep changes small and focused.
 - Prefer the Ork-first workflow (`ork` CLI + `unplugin-ork`).
-
-## Worklist markers
-
-For in-progress work on a branch, drop `// TODO(#123):` comments (parens + tracker issue
-number) at the spots that still need finishing. The parens keep them distinct from bare
-`TODO:` notes, so `grep -rF 'TODO(#'` lists the branch's remaining work and
-`grep -rF 'TODO(#123'` narrows to one issue (`-F` = literal match, portable across BSD/GNU
-grep). ork-tracker stays the source of truth for what and why; these just mark where. Clear
-them before opening the PR.

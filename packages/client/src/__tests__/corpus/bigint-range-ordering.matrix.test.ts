@@ -2,12 +2,6 @@ import { expect } from 'vitest'
 
 import { defineCorpus } from '../helpers/matrix'
 
-// Corpus for ork-tracker#72 — "SQLite BigInt stored as TEXT: gt/lt/orderBy
-// compare lexicographically". SQLite has no native BigInt, so the client stores
-// it as TEXT; without a CAST, range filters and orderBy compare strings
-// ('9' > '10') and silently return wrong rows/order. The generated client now
-// wraps BigInt column refs in `cast(... as integer)` for comparisons — the
-// template comes from the field-translator (`generateComparisonReference`).
 defineCorpus('BigInt range filters and ordering', { seed: false }, [
   {
     name: 'orderBy on a BigInt column sorts numerically, not lexicographically (#72)',

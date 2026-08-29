@@ -65,7 +65,7 @@ export class SQLiteTransformationGenerator implements FieldTransformationGenerat
       case 'Int':
         return 'INTEGER'
       case 'BigInt':
-        // TEXT, not INTEGER: better-sqlite3 returns INTEGER columns as lossy doubles above 2^53.
+        // better-sqlite3 stores BigInt as TEXT to avoid integer overflow issues.
         return 'TEXT'
       case 'Float':
       case 'Decimal':
@@ -82,8 +82,7 @@ export class SQLiteTransformationGenerator implements FieldTransformationGenerat
   }
 
   generateComparisonReference(field: FieldAST): string | null {
-    // BigInt is TEXT (see getDatabaseColumnType): CAST so ranges/ORDER BY compare
-    // numerically, not lexically. Bound values use the `where` value transform.
+    // CAST BigInt so ranges/ORDER BY compare numerically, not lexically.
     return field.fieldType === 'BigInt' ? 'sql`cast(${%REF%} as integer)`' : null
   }
 

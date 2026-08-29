@@ -2,11 +2,6 @@ import { expect } from 'vitest'
 
 import { defineCorpus } from '../helpers/matrix'
 
-// Regression: `include` must return correct nested objects on both dialects.
-// Previously the live include path used `jsonObjectFrom(...selectAll())`, which
-// kysely rejects on SQLite, and applied no per-field transforms to nested
-// scalars. The flat-LEFT-JOIN path must round-trip nulls and dialect-correct
-// types identically to top-level rows — and must not corrupt parent scalars.
 defineCorpus('relation null scalars', { seed: true }, [
   {
     name: 'includes a to-one relation and preserves parent + null optional scalars',
@@ -15,12 +10,8 @@ defineCorpus('relation null scalars', { seed: true }, [
       const bob = users.find((u) => u.email === 'bob@example.com')
       const charlie = users.find((u) => u.email === 'charlie@example.com')
 
-      // Parent scalars must survive the join. Regression: an unqualified
-      // selectAll over a LEFT JOIN collides `id` and null-fills it on a miss.
       expect(charlie?.id).toEqual(expect.any(Number))
       expect(bob?.id).toEqual(expect.any(Number))
-
-      // bob has a profile whose bio is null; charlie has no profile at all.
       expect(bob?.profile?.bio).toBeNull()
       expect(bob?.profile?.id).toEqual(expect.any(Number))
       expect(charlie?.profile).toBeNull()

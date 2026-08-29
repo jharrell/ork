@@ -82,7 +82,7 @@ export class MySQLTransformationGenerator implements FieldTransformationGenerato
   }
 
   generateComparisonReference(_field: FieldAST): string | null {
-    // Native BIGINT/numeric columns compare and sort correctly without coercion.
+    // No coercion needed for MySQL
     return null
   }
 
