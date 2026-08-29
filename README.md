@@ -57,7 +57,7 @@ alpha honestly — including known bugs.
 | `where` filters, incl. relation filters (`some`/`none`/`is`) | ✅ Works                                                  |
 | Interactive `$transaction(async (tx) => …)`                  | ✅ Works                                                  |
 | `$kysely` escape hatch (transaction-aware)                   | ✅ Works                                                  |
-| `include` (single level)                                     | ⚠️ PostgreSQL only; currently broken on SQLite            |
+| `include` (single level)                                     | ✅ Works on PostgreSQL and SQLite                         |
 | Migrations (`diff` + `apply`)                                | ⚠️ Solid on SQLite; PostgreSQL has known re-diff bugs     |
 | `select`, nested writes, multi-level `include`               | ❌ Not yet implemented                                    |
 | Enums, `@map`/`@@map`, composite keys, implicit many-to-many | ❌ Not yet supported end to end                           |

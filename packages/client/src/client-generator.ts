@@ -80,31 +80,12 @@ export class ClientGenerator {
     const importStyle = esModules ? 'import' : 'const'
     const fromStyle = esModules ? 'from' : '= require'
 
-    // Dialect-specific JSON helper imports
-    const jsonHelperImport = this.generateJsonHelperImport(importStyle, fromStyle)
-
     return dedent`
       ${importStyle} { OrkClientBase } ${fromStyle} '@ork-orm/client'
       ${importStyle} { createKyselyDialect, loadOrkConfig } ${fromStyle} '@ork-orm/config'
-      ${importStyle} { Kysely } ${fromStyle} 'kysely'
+      ${importStyle} { Kysely, sql } ${fromStyle} 'kysely'
       ${importStyle} type { Dialect, ExpressionBuilder, SelectQueryBuilder, UpdateQueryBuilder, DeleteQueryBuilder, Expression, SqlBool, ReferenceExpression, Selectable, LogConfig } ${fromStyle} 'kysely'
-
-      ${jsonHelperImport}
     `
-  }
-
-  private generateJsonHelperImport(importStyle: string, fromStyle: string): string {
-    // JSON aggregation helpers are dialect-specific in Kysely
-    switch (this.dialect) {
-      case 'postgresql':
-        return `${importStyle} { jsonArrayFrom, jsonObjectFrom } ${fromStyle} 'kysely/helpers/postgres'`
-      case 'mysql':
-        return `${importStyle} { jsonArrayFrom, jsonObjectFrom } ${fromStyle} 'kysely/helpers/mysql'`
-      case 'sqlite':
-        return `${importStyle} { jsonArrayFrom, jsonObjectFrom } ${fromStyle} 'kysely/helpers/sqlite'`
-      default:
-        return `${importStyle} { jsonArrayFrom, jsonObjectFrom } ${fromStyle} 'kysely/helpers/postgres'`
-    }
   }
 
   private generateTypeDefinitions(): string {
@@ -315,6 +296,27 @@ export class ClientGenerator {
     return model.fields
       .filter((field) => !modelNames.has(field.fieldType) && this.isUniqueField(field))
       .map((field) => field.name)
+  }
+
+  /**
+   * Fields whose column ref needs a SQL cast for range/ORDER BY comparisons,
+   * plus the field-translator's wrapper template (`%REF%` = spliced column ref).
+   */
+  private getComparisonCastFields(model: ModelAST): { names: string[]; template: string | null } {
+    const modelNames = new Set(this.schemaAST.models.map((m) => m.name))
+    const names: string[] = []
+    let template: string | null = null
+
+    for (const field of model.fields) {
+      if (modelNames.has(field.fieldType)) continue // relation, not a column
+      const reference = this.fieldTranslator.analyzeField(field).comparisonReference
+      if (reference) {
+        names.push(field.name)
+        template = reference
+      }
+    }
+
+    return { names, template }
   }
 
   /**
@@ -931,45 +933,22 @@ ${includeFields}
     const whereHelperName = `buildWhereExpression_${model.name}`
     const uniqueFieldNames = this.getUniqueFieldNames(model)
 
-    // Generate private relation helper methods
-    const relationHelpers = this.generateRelationHelperMethods(model, relations)
     const hasRelations = relations.length > 0
 
-    // Generate $if conditions for includes
-    const ifConditions = this.generateIfConditions(model, relations)
-
-    const includeAssignments = relations
-      .map((rel) => {
-        if (rel.isArray) {
-          return dedent`
-            if (include?.${rel.fieldName}) {
-              result.${rel.fieldName} = row.${rel.fieldName} ?? []
-            }
-          `
-        }
-
-        return dedent`
-          if (include?.${rel.fieldName}) {
-            result.${rel.fieldName} = row.${rel.fieldName} ?? null
-          }
-        `
-      })
+    // JOINs for to-one includes + runtime relation metadata for result assembly.
+    const includeJoins = this.generateIncludeJoins(model, relations)
+    const relationMeta = relations
+      .map(
+        (rel) =>
+          `if (include.${rel.fieldName}) relations.push({ field: '${rel.fieldName}', relatedModel: '${
+            rel.relatedModel
+          }', prefix: '${rel.fieldName}_', type: '${rel.isArray ? 'many' : 'one'}' })`,
+      )
       .join('\n')
-
-    const includeHelper = hasRelations
-      ? dedent`
-          private applyIncludes<TInclude extends ${model.name}Include>(
-            row: ${model.name}RowWithIncludes,
-            include: TInclude
-          ): ${model.name}GetPayload<{ include: TInclude }> {
-            const result: ${model.name}Scalars & Partial<${model.name}Relations> = this.transformSelectResult(row)
-
-            ${includeAssignments}
-
-            return result as ${model.name}GetPayload<{ include: TInclude }>
-          }
-        `
-      : ''
+    const relationsMetadata = dedent`
+      const relations: Array<{ field: string; relatedModel: string; prefix: string; type?: string }> = []
+      ${relationMeta}
+    `
 
     const findManyOverloads = hasRelations
       ? dedent`
@@ -1007,7 +986,9 @@ ${includeFields}
             return results.map(row => this.transformSelectResult(row))
           }
 
-          return results.map(row => this.applyIncludes(row, include))
+          ${relationsMetadata}
+          const relatedData = await this.fetchManyRelations(results, relations)
+          return results.map(row => this.transformSelectResultWithIncludes(row, relations, relatedData)) as ${model.name}GetPayload<T>[]
         `
       : dedent`
           return results.map(row => this.transformSelectResult(row))
@@ -1044,12 +1025,25 @@ ${includeFields}
             return this.transformSelectResult(results[0])
           }
 
-          return this.applyIncludes(results[0], include)
+          ${relationsMetadata}
+          const relatedData = await this.fetchManyRelations(results, relations)
+          return this.transformSelectResultWithIncludes(results[0], relations, relatedData) as ${model.name}GetPayload<T>
         `
       : dedent`
           return this.transformSelectResult(results[0])
         `
 
+    const { names: orderCastFields, template: orderCastTemplate } = this.getComparisonCastFields(model)
+    // Table-qualified: bare column refs turn ambiguous once include adds JOINs.
+    const orderRef = 'sql.ref(`' + tableName + '.${field}`)'
+    const orderByClause =
+      orderCastFields.length && orderCastTemplate
+        ? dedent`
+          query = comparisonCast_${model.name}[field] === true
+            ? query.orderBy(${orderCastTemplate.replaceAll('%REF%', orderRef)}, direction as 'asc' | 'desc')
+            : query.orderBy(${orderRef}, direction as 'asc' | 'desc')
+        `
+        : `query = query.orderBy(${orderRef}, direction as 'asc' | 'desc')`
     return dedent.withOptions({ alignValues: true })`
       /**
        * Generated operations for ${model.name} model
@@ -1057,14 +1051,13 @@ ${includeFields}
       class ${className} {
         constructor(private kysely: Kysely<DatabaseSchema>) {}
 
-        ${relationHelpers}
 
         ${findManyOverloads}
         async findMany<T extends ${model.name}FindManyArgs = {}>(args?: T): ${findManyReturnType} {
           let query = this.kysely
             .selectFrom('${tableName}')
-            .selectAll()
-            ${ifConditions}
+            .selectAll('${tableName}')
+            ${includeJoins}
 
           query = query.where(eb => ${whereHelperName}(this.kysely, eb, args?.where ?? {}))
 
@@ -1076,7 +1069,7 @@ ${includeFields}
                   return
                 }
 
-                query = query.orderBy(field as any, direction as 'asc' | 'desc')
+                ${orderByClause}
               })
             }
           }
@@ -1098,8 +1091,8 @@ ${includeFields}
         async findUnique<T extends ${model.name}FindUniqueArgs>(args: T): ${findOneReturnType} {
           let query = this.kysely
             .selectFrom('${tableName}')
-            .selectAll()
-            ${ifConditions}
+            .selectAll('${tableName}')
+            ${includeJoins}
 
           query = query.where(eb => ${whereHelperName}(this.kysely, eb, args.where))
           const results = await query.execute()
@@ -1113,8 +1106,8 @@ ${includeFields}
         async findFirst<T extends ${model.name}FindFirstArgs = {}>(args?: T): ${findOneReturnType} {
           let query = this.kysely
             .selectFrom('${tableName}')
-            .selectAll()
-            ${ifConditions}
+            .selectAll('${tableName}')
+            ${includeJoins}
 
           query = query.where(eb => ${whereHelperName}(this.kysely, eb, args?.where ?? {}))
 
@@ -1126,7 +1119,7 @@ ${includeFields}
                   return
                 }
 
-                query = query.orderBy(field as any, direction as 'asc' | 'desc')
+                ${orderByClause}
               })
             }
           }
@@ -1247,7 +1240,6 @@ ${includeFields}
           return result as ${model.name}Scalars
         }
 
-        ${includeHelper}
 
         private async fetchManyRelations(results: any[], relations: Array<{ field: string; relatedModel: string; prefix: string; type?: string }>): Promise<Record<string, any[]>> {
           const relatedData: Record<string, any[]> = {}
@@ -1424,7 +1416,22 @@ ${includeFields}
             expressions.push(${buildFieldName}(eb, field, value))
         `
 
+    const { names: whereCastFields, template: whereCastTemplate } = this.getComparisonCastFields(model)
+    const comparisonCastBlock = whereCastFields.length
+      ? `const comparisonCast_${modelName}: Record<string, true> = { ${whereCastFields
+          .map((n) => `'${n}': true`)
+          .join(', ')} }\n\n`
+      : ''
+    const comparisonFieldBlock =
+      whereCastFields.length && whereCastTemplate
+        ? dedent`
+          const comparisonField = comparisonCast_${modelName}[field] === true
+            ? ${whereCastTemplate.replaceAll('%REF%', 'sql.ref(`' + modelName + '.${field}`)')}
+            : qualifiedField
+        `
+        : 'const comparisonField = qualifiedField'
     return dedent.withOptions({ alignValues: true })`
+      ${comparisonCastBlock}
       function ${transformWhereName}(fieldName: string, value: unknown): unknown {
         ${this.generateFieldTransformationMethods(model, 'where')}
       }
@@ -1435,6 +1442,7 @@ ${includeFields}
         value: unknown
       ) {
         const qualifiedField = \`${modelName}.$\{field}\` as ReferenceExpression<DatabaseSchema, '${modelName}'>
+        ${comparisonFieldBlock}
 
         if (value === null) {
           return eb(qualifiedField, 'is', null)
@@ -1457,16 +1465,16 @@ ${includeFields}
                 }
                 break
               case 'gt':
-                conditions.push(eb(qualifiedField, '>', ${transformWhereName}(field, operatorValue)))
+                conditions.push(eb(comparisonField, '>', ${transformWhereName}(field, operatorValue)))
                 break
               case 'gte':
-                conditions.push(eb(qualifiedField, '>=', ${transformWhereName}(field, operatorValue)))
+                conditions.push(eb(comparisonField, '>=', ${transformWhereName}(field, operatorValue)))
                 break
               case 'lt':
-                conditions.push(eb(qualifiedField, '<', ${transformWhereName}(field, operatorValue)))
+                conditions.push(eb(comparisonField, '<', ${transformWhereName}(field, operatorValue)))
                 break
               case 'lte':
-                conditions.push(eb(qualifiedField, '<=', ${transformWhereName}(field, operatorValue)))
+                conditions.push(eb(comparisonField, '<=', ${transformWhereName}(field, operatorValue)))
                 break
               case 'not':
                 if (operatorValue === null) {
@@ -1563,10 +1571,7 @@ ${includeFields}
           return null
         }
 
-        // @updatedAt is client-managed (always set below). Everything else —
-        // including @id — passes through: a @default id is optional, not
-        // forbidden, and the `!== undefined` guard leaves omitted ids to the
-        // database default (#54).
+        // @updatedAt is client-managed
         const isCreateOrUpdate = operation === 'update' || operation === 'create'
         const isUpdatedAt = field.attributes.some((attr) => attr.name === 'updatedAt')
         if (isCreateOrUpdate && isUpdatedAt) {
@@ -1767,20 +1772,9 @@ export async function createClient(): Promise<OrkClient> {
   }
 
   /**
-   * Get the TypeScript type for a field by name
-   * Uses mapFieldType to ensure consistency with generated model interfaces
+   * LEFT JOINs flattening included to-one relations into prefixed columns (`<field>_<column>`).
    */
-  private getFieldTsType(model: ModelAST, fieldName: string): string {
-    const field = model.fields.find((f) => f.name === fieldName)
-    if (!field) return 'unknown'
-    return this.mapFieldType(field)
-  }
-
-  /**
-   * Generate private helper methods for relation loading using jsonArrayFrom/jsonObjectFrom
-   * These create subquery builders for each relation
-   */
-  private generateRelationHelperMethods(
+  private generateIncludeJoins(
     model: ModelAST,
     relations: Array<{
       fieldName: string
@@ -1790,115 +1784,48 @@ export async function createClient(): Promise<OrkClient> {
       referencedField?: string
     }>,
   ): string {
-    if (relations.length === 0) return ''
+    const toOne = relations.filter((rel) => !rel.isArray)
+    if (toOne.length === 0) return ''
 
+    const tableName = this.getTableName(model)
     const pkField = this.getPrimaryKeyField(model)
-    const pkType = this.getFieldTsType(model, pkField)
 
-    const helpers = relations
+    return toOne
       .map((rel) => {
         const relatedModel = this.findModelByName(rel.relatedModel)
         if (!relatedModel) return ''
 
         const relatedTableName = this.getTableName(relatedModel)
+        const alias = rel.fieldName
 
-        if (rel.isArray) {
-          // One-to-many: use jsonArrayFrom
-          // Find the FK field on the related model that points to this model
-          const foreignKeyField = this.getForeignKeyForRelation(relatedModel, model.name)
-
-          return dedent`
-            private _${rel.fieldName}(${pkField}: Expression<${pkType}>) {
-              return jsonArrayFrom(
-                this.kysely.selectFrom('${relatedTableName}')
-                  .selectAll()
-                  .whereRef('${relatedTableName}.${foreignKeyField}', '=', ${pkField})
-                  .orderBy('${relatedTableName}.${this.getPrimaryKeyField(relatedModel)}'))
-            }
-          `
-        } else if (rel.foreignKeyField) {
-          // Forward relation (this model has FK): use jsonObjectFrom
-          const fkType = this.getFieldTsType(model, rel.foreignKeyField)
-
-          return dedent`
-            private _${rel.fieldName}(${rel.foreignKeyField}: Expression<${fkType}>) {
-              return jsonObjectFrom(
-                this.kysely.selectFrom('${relatedTableName}')
-                  .selectAll()
-                  .whereRef('${relatedTableName}.${rel.referencedField || 'id'}', '=', ${rel.foreignKeyField})
-              )
-            }
-          `
+        let joinLeft: string
+        let joinRight: string
+        if (rel.foreignKeyField) {
+          // Forward relation: this model holds the FK.
+          joinLeft = `${alias}.${rel.referencedField || 'id'}`
+          joinRight = `${tableName}.${rel.foreignKeyField}`
         } else {
-          // Reverse relation (related model has FK pointing to us): use jsonObjectFrom
-          const reverseRelation = this.getModelRelations(relatedModel).find(
+          // Reverse relation: the related model holds the FK back to us.
+          const reverse = this.getModelRelations(relatedModel).find(
             (r) => r.relatedModel === model.name && r.foreignKeyField,
           )
-
-          if (reverseRelation) {
-            return dedent`
-              private _${rel.fieldName}(${pkField}: Expression<${pkType}>) {
-                return jsonObjectFrom(
-                  this.kysely.selectFrom('${relatedTableName}')
-                    .selectAll()
-                    .whereRef('${relatedTableName}.${reverseRelation.foreignKeyField}', '=', ${pkField})
-                )
-              }
-            `
-          }
+          if (!reverse) return ''
+          joinLeft = `${alias}.${reverse.foreignKeyField}`
+          joinRight = `${tableName}.${pkField}`
         }
 
-        return ''
-      })
-      .filter(Boolean)
-      .join('\n\n')
-
-    return helpers
-  }
-
-  /**
-   * Generate $if conditions for conditionally including relations in queries
-   * Uses the private helper methods to build subqueries
-   */
-  private generateIfConditions(
-    model: ModelAST,
-    relations: Array<{
-      fieldName: string
-      relatedModel: string
-      isArray: boolean
-      foreignKeyField?: string
-      referencedField?: string
-    }>,
-  ): string {
-    if (relations.length === 0) return ''
-
-    const tableName = this.getTableName(model)
-    const pkField = this.getPrimaryKeyField(model)
-
-    const conditions = relations
-      .map((rel) => {
-        const relatedModel = this.findModelByName(rel.relatedModel)
-        if (!relatedModel) return ''
-
-        // Determine the reference field to pass to the helper
-        let refField: string
-        if (rel.foreignKeyField) {
-          // Forward relation: use the FK field
-          refField = `'${tableName}.${rel.foreignKeyField}'`
-        } else {
-          // Reverse relation or one-to-many: use the PK field
-          refField = `'${tableName}.${pkField}'`
-        }
+        const columns = relatedModel.fields
+          .filter((f) => !this.getModelRelations(relatedModel).some((r) => r.fieldName === f.name))
+          .map((f) => `'${alias}.${f.name} as ${rel.fieldName}_${f.name}'`)
+          .join(', ')
 
         return dedent`
-        .$if(!!args?.include?.${rel.fieldName}, (qb) => qb.select(
-          (eb) => this._${rel.fieldName}(eb.ref(${refField})).as('${rel.fieldName}')
-        ))`
+          .$if(!!args?.include?.${rel.fieldName}, (qb) => qb
+            .leftJoin('${relatedTableName} as ${alias}', '${joinLeft}', '${joinRight}')
+            .select([${columns}]))`
       })
       .filter(Boolean)
       .join('\n')
-
-    return conditions
   }
 
   /**
@@ -1965,7 +1892,7 @@ export async function createClient(): Promise<OrkClient> {
           const relatedFields = relatedModel.fields
             .filter((f) => !this.getModelRelations(relatedModel).some((r) => r.fieldName === f.name))
             .map((f) => {
-              const transformation = this.generateFieldValueTransformation(f, `row.${rel.fieldName}_${f.name}`, true)
+              const transformation = this.generateSelectTransform(f, `row.${rel.fieldName}_${f.name}`)
               return `      ${f.name}: ${transformation}`
             })
             .join(',\n')
@@ -2018,7 +1945,15 @@ ${relatedFields}
   }
 
   /**
-   * Generate logic to fetch one-to-many relations separately
+   * Read transform for one scalar.
+   */
+  private generateSelectTransform(field: FieldAST, variableName: string): string {
+    const code = this.fieldTranslator.analyzeField(field).transformations.get('select')?.code
+    return code ? code.replaceAll(`data.${field.name}`, variableName) : variableName
+  }
+
+  /**
+   * Generate logic to fetch one-to-many relations separately.
    */
   private generateFetchManyRelationsLogic(model: ModelAST): string {
     const relations = this.getModelRelations(model).filter((r) => r.isArray)
@@ -2038,7 +1973,7 @@ ${relatedFields}
         const relatedFieldTransforms = relatedModel.fields
           .filter((f) => !this.getModelRelations(relatedModel).some((r) => r.fieldName === f.name))
           .map((f) => {
-            const transformation = this.generateFieldValueTransformation(f, `row.${f.name}`, true)
+            const transformation = this.generateSelectTransform(f, `row.${f.name}`)
             return `${f.name}: ${transformation}`
           })
           .join(',\n')
@@ -2052,6 +1987,7 @@ ${relatedFields}
               .selectFrom('${relatedTableName}')
               .selectAll()
               .where('${foreignKeyField}', 'in', parentIds)
+              .orderBy('${this.getPrimaryKeyField(relatedModel)}')
               .execute()
 
             relatedData['${rel.fieldName}'] = ${rel.fieldName}Results.map((row: any) => ({

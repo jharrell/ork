@@ -81,6 +81,12 @@ export class SQLiteTransformationGenerator implements FieldTransformationGenerat
     }
   }
 
+  generateComparisonReference(field: FieldAST): string | null {
+    // BigInt is TEXT (see getDatabaseColumnType): CAST so ranges/ORDER BY compare
+    // numerically, not lexically. Bound values use the `where` value transform.
+    return field.fieldType === 'BigInt' ? 'sql`cast(${%REF%} as integer)`' : null
+  }
+
   private generateBooleanTransformation(
     operation: TransformationOperation,
     variableName: string,
