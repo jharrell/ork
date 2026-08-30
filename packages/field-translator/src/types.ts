@@ -90,6 +90,16 @@ export interface FieldTransformationGenerator {
    * @returns Database-specific column type
    */
   getDatabaseColumnType(field: FieldAST): string
+
+  /**
+   * SQL column-reference transform for range (gt/lt/gte/lte) and ORDER BY
+   * comparisons. Value transforms coerce the bound value; this coerces the
+   * column itself (e.g. SQLite BigInt is TEXT and would compare lexically).
+   *
+   * @returns Template with `%REF%` marking the caller's column ref, or null
+   *   when the raw reference already compares correctly.
+   */
+  generateComparisonReference(field: FieldAST): string | null
 }
 
 /**
@@ -119,6 +129,8 @@ export interface FieldAnalysisResult {
   transformations: Map<TransformationOperation, GeneratedTransformation>
   /** Database column type */
   columnType: string
+  /** SQL comparison/order reference transform template, or null. See {@link FieldTransformationGenerator.generateComparisonReference}. */
+  comparisonReference: string | null
   /** Any special handling requirements */
   specialHandling: SpecialFieldHandling[]
 }

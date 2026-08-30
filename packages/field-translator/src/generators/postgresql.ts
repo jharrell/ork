@@ -88,6 +88,11 @@ export class PostgreSQLTransformationGenerator implements FieldTransformationGen
     }
   }
 
+  generateComparisonReference(_field: FieldAST): string | null {
+    // No coercion needed for PostgreSQL
+    return null
+  }
+
   private generateBooleanTransformation(
     operation: TransformationOperation,
     variableName: string,

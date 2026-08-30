@@ -312,7 +312,7 @@ describe('ClientGenerator', () => {
 
     // Should generate include logic
     expect(output).toContain('.$if(')
-    expect(output).toContain('jsonObjectFrom')
+    expect(output).toContain('leftJoin(')
     expect(output).toContain('transformSelectResultWithIncludes(')
 
     // Should handle relation transformation

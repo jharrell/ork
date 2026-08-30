@@ -109,6 +109,15 @@ describe('FieldTranslator Integration', () => {
       expect(result.transformations.get('where')?.code).toBe('String(data.score)')
       expect(result.transformations.get('select')?.code).toBe('BigInt(data.score)')
     })
+
+    it('should CAST BigInt column references for range and ORDER BY comparisons', () => {
+      expect(analyzer.analyzeField(mockBigIntField).comparisonReference).toBe('sql`cast(${%REF%} as integer)`')
+    })
+
+    it('should not coerce non-BigInt column references', () => {
+      expect(analyzer.analyzeField(mockStringField).comparisonReference).toBeNull()
+      expect(analyzer.analyzeField(mockBooleanField).comparisonReference).toBeNull()
+    })
   })
 
   describe('PostgreSQL Transformations', () => {
@@ -138,6 +147,10 @@ describe('FieldTranslator Integration', () => {
       expect(result.transformations.get('update')?.code).toBe('BigInt(data.score as string | number | bigint)')
       expect(result.transformations.get('where')?.code).toBe('BigInt(data.score as string | number | bigint)')
       expect(result.transformations.get('select')?.code).toBe('BigInt(data.score)')
+    })
+
+    it('should not coerce column references (native numeric comparison)', () => {
+      expect(analyzer.analyzeField(mockBigIntField).comparisonReference).toBeNull()
     })
   })
 

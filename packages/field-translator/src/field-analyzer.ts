@@ -53,6 +53,7 @@ export class FieldAnalyzer {
       field,
       transformations,
       columnType: this.generator.getDatabaseColumnType(field),
+      comparisonReference: this.generator.generateComparisonReference(field),
       specialHandling: this.detectSpecialHandling(field),
     }
   }

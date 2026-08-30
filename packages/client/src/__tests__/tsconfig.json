@@ -1,0 +1,19 @@
+{
+  // Editor-facing project for the test tree. The package tsconfig excludes
+  // __tests__ (CI typecheck stays scoped to src/), and editors that resolve
+  // only the nearest tsconfig then fall back to an inferred ES5 project —
+  // which reports e.g. "BigInt literals are not available when targeting
+  // lower than ES2020" in the corpus files. This pins tests to the shared
+  // base config instead. CI never invokes it; full test typechecking is a
+  // separate deferred cleanup.
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "emitDeclarationOnly": false,
+    "types": ["node"]
+  },
+  "include": ["**/*"],
+  // The base config's exclude (which drops **/__tests__) is rebased onto this
+  // directory by extends; override it or the whole tree is excluded.
+  "exclude": []
+}

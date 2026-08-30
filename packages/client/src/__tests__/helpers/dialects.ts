@@ -17,6 +17,7 @@ export interface TestDatabase {
   User: Record<string, unknown>
   Profile: Record<string, unknown>
   Post: Record<string, unknown>
+  ApiKey: Record<string, unknown>
 }
 export type TestKysely = Kysely<TestDatabase>
 
@@ -133,6 +134,7 @@ async function applyPostgresSchema(kysely: TestKysely): Promise<void> {
     CREATE TABLE "Profile" (
       id SERIAL PRIMARY KEY,
       bio TEXT,
+      settings JSONB,
       "userId" INTEGER UNIQUE NOT NULL,
       FOREIGN KEY ("userId") REFERENCES "User"(id) ON DELETE CASCADE
     )
@@ -143,11 +145,19 @@ async function applyPostgresSchema(kysely: TestKysely): Promise<void> {
       id SERIAL PRIMARY KEY,
       title TEXT NOT NULL,
       content TEXT,
+      metadata JSONB,
       published BOOLEAN NOT NULL DEFAULT false,
       "authorId" INTEGER NOT NULL,
       "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
       "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW(),
       FOREIGN KEY ("authorId") REFERENCES "User"(id) ON DELETE CASCADE
+    )
+  `.execute(kysely)
+
+  await sql`
+    CREATE TABLE "ApiKey" (
+      id TEXT PRIMARY KEY,
+      label TEXT NOT NULL
     )
   `.execute(kysely)
 }
@@ -173,6 +183,7 @@ async function applySqliteSchema(kysely: TestKysely): Promise<void> {
     CREATE TABLE "Profile" (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       bio TEXT,
+      settings TEXT,
       "userId" INTEGER UNIQUE NOT NULL,
       FOREIGN KEY ("userId") REFERENCES "User"(id) ON DELETE CASCADE
     )
@@ -183,11 +194,19 @@ async function applySqliteSchema(kysely: TestKysely): Promise<void> {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
       content TEXT,
+      metadata TEXT,
       published BOOLEAN NOT NULL DEFAULT 0,
       "authorId" INTEGER NOT NULL,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY ("authorId") REFERENCES "User"(id) ON DELETE CASCADE
+    )
+  `.execute(kysely)
+
+  await sql`
+    CREATE TABLE "ApiKey" (
+      id TEXT PRIMARY KEY,
+      label TEXT NOT NULL
     )
   `.execute(kysely)
 }

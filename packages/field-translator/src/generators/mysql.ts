@@ -81,6 +81,11 @@ export class MySQLTransformationGenerator implements FieldTransformationGenerato
     }
   }
 
+  generateComparisonReference(_field: FieldAST): string | null {
+    // No coercion needed for MySQL
+    return null
+  }
+
   private generateBooleanTransformation(
     operation: TransformationOperation,
     variableName: string,
