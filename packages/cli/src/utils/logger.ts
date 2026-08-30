@@ -1,4 +1,5 @@
 import chalk from 'chalk'
+import ora from 'ora'
 
 import type { Logger } from '../types.js'
 
@@ -34,8 +35,8 @@ export class OrkLogger implements Logger {
    * Display a spinner with message
    */
   spinner(message: string) {
-    const ora = require('ora')
-    return ora({
+    const spinner = ora
+    return spinner({
       text: message,
       prefixText: this.prefix,
       color: 'blue',

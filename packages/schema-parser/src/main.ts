@@ -45,7 +45,7 @@ export function parseSchema(input: string | string[]): ParseResult {
   const schemaContent = parseInput
     .map((item) => {
       try {
-        existsSync(item) && statSync(item).isFile()
+        if (existsSync(item) && !statSync(item).isFile()) throw new Error('not a file')
         return readFileSync(resolve(item), 'utf-8')
       } catch {
         return item // If it fails, treat as schema content

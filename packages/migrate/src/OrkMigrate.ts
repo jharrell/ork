@@ -325,7 +325,7 @@ export class OrkMigrate {
         .where('id', '=', lock.id)
         .where('processId', '=', lock.processId)
         .execute()
-    } catch (error) {
+    } catch {
       // Silently handle errors during lock release - the lock will expire anyway
       // Don't log as it may cause confusion when the database connection is closing
     }
@@ -1578,7 +1578,7 @@ export class OrkMigrate {
 
     // Fallback: convert to string and log warning
     this.warn(`Unexpected default value type for SQL: ${typeof value}`, { value })
-    return String(value)
+    return String(value as string | number | boolean)
   }
 
   /**
@@ -1617,7 +1617,7 @@ export class OrkMigrate {
         supportsRenameColumn,
         supportsDropColumn,
       }
-    } catch (error) {
+    } catch {
       return null
     }
   }
@@ -2352,7 +2352,7 @@ export class OrkMigrate {
       }
 
       return null
-    } catch (error) {
+    } catch {
       this.warn(`Failed to generate reverse statement for: ${statement}`)
       return null
     }
@@ -3534,7 +3534,7 @@ export class OrkMigrate {
       return 'DEFAULT'
     }
 
-    return String(value)
+    return String(value as string | number | boolean)
   }
 
   /**
@@ -3584,7 +3584,7 @@ export class OrkMigrate {
       return value ? 'true' : 'false'
     }
 
-    return `'${String(value).replace(/'/g, "''")}'`
+    return `'${String(value as string).replace(/'/g, "''")}'`
   }
 
   /**

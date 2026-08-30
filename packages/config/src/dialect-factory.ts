@@ -129,7 +129,7 @@ export async function validateConnection(config: OrkConfig): Promise<boolean> {
     await db.destroy()
 
     return true
-  } catch (error) {
+  } catch {
     return false
   }
 }

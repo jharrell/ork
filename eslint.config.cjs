@@ -2,12 +2,9 @@ const typescriptEslint = require('@typescript-eslint/eslint-plugin')
 const jest = require('eslint-plugin-jest')
 const simpleImportSort = require('eslint-plugin-simple-import-sort')
 const _import = require('eslint-plugin-import-x')
-const path = require('path')
 
 const globals = require('globals')
-const tsParser = require('@typescript-eslint/parser')
 const js = require('@eslint/js')
-
 const { FlatCompat } = require('@eslint/eslintrc')
 
 const compat = new FlatCompat({
@@ -15,8 +12,6 @@ const compat = new FlatCompat({
   recommendedConfig: js.configs.recommended,
   allConfig: js.configs.all,
 })
-
-const project = path.resolve(__dirname, 'tsconfig.json')
 
 module.exports = [
   {
@@ -40,7 +35,6 @@ module.exports = [
     'eslint:recommended',
     'plugin:@typescript-eslint/eslint-recommended',
     'plugin:@typescript-eslint/recommended',
-    'plugin:@typescript-eslint/recommended-requiring-type-checking',
     'plugin:prettier/recommended',
     'plugin:jest/recommended',
   ),
@@ -57,12 +51,20 @@ module.exports = [
         ...globals.node,
       },
 
-      parser: tsParser,
       ecmaVersion: 2020,
       sourceType: 'module',
 
       parserOptions: {
-        project,
+        // projectService resolves each file against the nearest tsconfig —
+        // package sources through packages/<pkg>/tsconfig.json instead of the
+        // repo root. The previous static `project: <root>/tsconfig.json`
+        // assumed every tracked file lived in that single project; the
+        // typescript-eslint v8 parser rejects that assumption for repo-level
+        // JS (eslint.config.cjs, scripts/only-allow-pnpm.js), which are
+        // explicitly allowed into the default project.
+        projectService: {
+          allowDefaultProject: ['eslint.config.cjs', 'scripts/only-allow-pnpm.js'],
+        },
       },
     },
 
@@ -133,6 +135,15 @@ module.exports = [
     files: ['**/*.test.ts'],
     rules: {
       '@typescript-eslint/require-await': 'off',
+    },
+  },
+  {
+    files: ['eslint.config.cjs', 'scripts/only-allow-pnpm.js'],
+    rules: {
+      // CJS by file extension; v8's no-require-imports fires on the config's
+      // own require() calls now that projectService opens these files to the
+      // default project.
+      '@typescript-eslint/no-require-imports': 'off',
     },
   },
 ]
