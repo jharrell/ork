@@ -7,7 +7,7 @@
  */
 
 export type { ModelFactory, OrkClientOptions } from './client'
-export { OrkClientBase } from './client'
+export { OrkClientBase, OrkNotImplementedError } from './client'
 export { OrkClientBase as OrkClient } from './client'
 
 // Core types

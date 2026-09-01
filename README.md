@@ -59,10 +59,10 @@ alpha honestly — including known bugs.
 | `$kysely` escape hatch (transaction-aware)                   | ✅ Works                                                  |
 | `include` (single level)                                     | ✅ Works on PostgreSQL and SQLite                         |
 | Migrations (`diff` + `apply`)                                | ⚠️ Solid on SQLite; PostgreSQL has known re-diff bugs     |
-| `select`, nested writes, multi-level `include`               | ❌ Not yet implemented                                    |
-| Enums, `@map`/`@@map`, composite keys, implicit many-to-many | ❌ Not yet supported end to end                           |
-| Aggregations, `groupBy`                                      | ❌ Planned                                                |
-| MySQL                                                        | ❌ Scaffolding exists, untested — do not use              |
+| `select`, nested writes, multi-level `include`               | ❌ Not yet supported                                      |
+| Enums, `@map`/`@@map`, composite keys, implicit many-to-many | ❌ Not yet supported                                      |
+| Aggregations, `groupBy`                                      | ❌ Not yet supported                                      |
+| MySQL                                                        | ❌ Not yet supported                                      |
 
 ## Key Packages
 

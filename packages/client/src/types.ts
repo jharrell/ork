@@ -185,12 +185,6 @@ export type EnhancedOrkClientType<TSchema extends DatabaseSchema> = OrkClient<TS
       version: string
     }>
 
-    /** Execute raw SQL queries */
-    $queryRaw<T = unknown>(query: string, values?: unknown[]): Promise<T[]>
-
-    /** Execute raw SQL commands */
-    $executeRaw(query: string, values?: unknown[]): Promise<number>
-
     /** Cleanup resources */
     destroy(): Promise<void>
   }

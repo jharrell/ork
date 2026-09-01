@@ -81,7 +81,7 @@ export class ClientGenerator {
     const fromStyle = esModules ? 'from' : '= require'
 
     return dedent`
-      ${importStyle} { OrkClientBase } ${fromStyle} '@ork-orm/client'
+      ${importStyle} { OrkClientBase, OrkNotImplementedError } ${fromStyle} '@ork-orm/client'
       ${importStyle} { createKyselyDialect, loadOrkConfig } ${fromStyle} '@ork-orm/config'
       ${importStyle} { Kysely, sql } ${fromStyle} 'kysely'
       ${importStyle} type { Dialect, ExpressionBuilder, SelectQueryBuilder, UpdateQueryBuilder, DeleteQueryBuilder, Expression, SqlBool, ReferenceExpression, Selectable, LogConfig } ${fromStyle} 'kysely'
@@ -847,6 +847,7 @@ ${fields.join('\n')}
 
       export type ${model.name}CreateManyArgs = {
         data: ${model.name}CreateInput[]
+        skipDuplicates?: boolean
       }
 
       export type ${model.name}UpdateArgs = {
@@ -1054,9 +1055,27 @@ ${includeFields}
       class ${className} {
         constructor(private kysely: Kysely<DatabaseSchema>) {}
 
-
         ${findManyOverloads}
         async findMany<T extends ${model.name}FindManyArgs = {}>(args?: T): ${findManyReturnType} {
+          if (args && (args as Record<string, unknown>).select !== undefined) {
+            throw new OrkNotImplementedError("The 'select' option", 'Use $kysely for partial column projections.')
+          }
+          if (args && 'cursor' in args && (args as Record<string, unknown>).cursor !== undefined) {
+            throw new OrkNotImplementedError("Cursor-based pagination ('cursor')", "Use offset pagination ('skip' and 'take') instead.")
+          }
+          if (args && 'distinct' in args && (args as Record<string, unknown>).distinct !== undefined) {
+            throw new OrkNotImplementedError("Distinct queries ('distinct')", 'Use $kysely for distinct queries.')
+          }
+          if (args?.include) {
+            for (const [relKey, relVal] of Object.entries(args.include)) {
+              if (relVal !== undefined && relVal !== false && relVal !== true) {
+                throw new OrkNotImplementedError(
+                  'Nested include options for relation "' + relKey + '"',
+                  'Only boolean flags (e.g. { include: { ' + relKey + ': true } }) are supported in alpha.'
+                )
+              }
+            }
+          }
           let query = this.kysely
             .selectFrom('${tableName}')
             .selectAll('${tableName}')
@@ -1089,9 +1108,21 @@ ${includeFields}
 
           ${findManyReturn}
         }
-
         ${findUniqueOverloads}
         async findUnique<T extends ${model.name}FindUniqueArgs>(args: T): ${findOneReturnType} {
+          if (args && (args as Record<string, unknown>).select !== undefined) {
+            throw new OrkNotImplementedError("The 'select' option", 'Use $kysely for partial column projections.')
+          }
+          if (args?.include) {
+            for (const [relKey, relVal] of Object.entries(args.include)) {
+              if (relVal !== undefined && relVal !== false && relVal !== true) {
+                throw new OrkNotImplementedError(
+                  'Nested include options for relation "' + relKey + '"',
+                  'Only boolean flags (e.g. { include: { ' + relKey + ': true } }) are supported in alpha.'
+                )
+              }
+            }
+          }
           let query = this.kysely
             .selectFrom('${tableName}')
             .selectAll('${tableName}')
@@ -1104,9 +1135,24 @@ ${includeFields}
 
           ${findOneReturn}
         }
-
         ${findFirstOverloads}
         async findFirst<T extends ${model.name}FindFirstArgs = {}>(args?: T): ${findOneReturnType} {
+          if (args && (args as Record<string, unknown>).select !== undefined) {
+            throw new OrkNotImplementedError("The 'select' option", 'Use $kysely for partial column projections.')
+          }
+          if (args && 'distinct' in args && (args as Record<string, unknown>).distinct !== undefined) {
+            throw new OrkNotImplementedError("Distinct queries ('distinct')", 'Use $kysely for distinct queries.')
+          }
+          if (args?.include) {
+            for (const [relKey, relVal] of Object.entries(args.include)) {
+              if (relVal !== undefined && relVal !== false && relVal !== true) {
+                throw new OrkNotImplementedError(
+                  'Nested include options for relation "' + relKey + '"',
+                  'Only boolean flags (e.g. { include: { ' + relKey + ': true } }) are supported in alpha.'
+                )
+              }
+            }
+          }
           let query = this.kysely
             .selectFrom('${tableName}')
             .selectAll('${tableName}')
@@ -1144,8 +1190,10 @@ ${includeFields}
             .executeTakeFirstOrThrow()
           return this.transformSelectResult(result)
         }
-
         async createMany(args: ${model.name}CreateManyArgs): Promise<{ count: number }> {
+          if (args && (args as Record<string, unknown>).skipDuplicates !== undefined && args.skipDuplicates) {
+            throw new OrkNotImplementedError("The 'skipDuplicates' option in createMany", 'Insert rows with individual upsert calls or use $kysely.')
+          }
           const dataArray = args.data.map(item => this.prepareCreateData(item))
           if (dataArray.length === 0) {
             return { count: 0 }
@@ -1218,8 +1266,19 @@ ${includeFields}
         }
 
         ${conflictResolver}
-
         private prepareCreateData(data: ${model.name}CreateInput): Record<string, unknown> {
+          ${
+            relations.length
+              ? `for (const relName of [${relations.map((r) => `'${r.fieldName}'`).join(', ')}]) {
+            if ((data as Record<string, unknown>)[relName] !== undefined) {
+              throw new OrkNotImplementedError(
+                \`Nested write on relation "\${relName}" in ${model.name}.create\`,
+                'Nested writes (create/connect/disconnect) are not yet supported. Create related records independently.'
+              )
+            }
+          }`
+              : ''
+          }
           const prepared: Record<string, unknown> = {}
 
           ${this.generateFieldTransformationMethods(model, 'create')}
@@ -1228,6 +1287,18 @@ ${includeFields}
         }
 
         private prepareUpdateData(data: ${model.name}UpdateInput): Record<string, unknown> {
+          ${
+            relations.length
+              ? `for (const relName of [${relations.map((r) => `'${r.fieldName}'`).join(', ')}]) {
+            if ((data as Record<string, unknown>)[relName] !== undefined) {
+              throw new OrkNotImplementedError(
+                \`Nested write on relation "\${relName}" in ${model.name}.update\`,
+                'Nested writes (create/connect/disconnect) are not yet supported. Update related records independently.'
+              )
+            }
+          }`
+              : ''
+          }
           const prepared: Record<string, unknown> = {}
 
           ${this.generateFieldTransformationMethods(model, 'update')}
@@ -1450,8 +1521,13 @@ ${includeFields}
         if (value === null) {
           return eb(qualifiedField, 'is', null)
         }
-
         if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          if ('mode' in value && (value as Record<string, unknown>).mode === 'insensitive') {
+            throw new OrkNotImplementedError(
+              'Case-insensitive filter (mode: "insensitive") on field "' + field + '"',
+              'Case-insensitive filtering is not yet supported.'
+            )
+          }
           const conditions: Expression<SqlBool>[] = []
 
           for (const [operator, operatorValue] of Object.entries(value)) {
