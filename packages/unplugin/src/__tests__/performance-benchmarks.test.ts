@@ -68,8 +68,8 @@ model Model${i} {
   field6    Json?
   field7    Decimal?
   field8    BigInt?
-  field9    Bytes?
-  field10   Float[]
+  field9    String?
+  field10   Float?
 
   // Relations to create complexity
   related1  Model${(i + 1) % 100}[]

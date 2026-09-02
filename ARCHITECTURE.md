@@ -187,7 +187,7 @@ The generated client (`generated/index.ts`) contains:
 2. **Model delegates** - Objects like `client.user` with CRUD methods
 3. **Field transformations** - Embedded transformation logic (zero runtime overhead)
 4. **Query builders** - Methods like `findUnique`, `findMany`, `create`, `update`, `delete`
-5. **Relation loading** - Logic for `include` to fetch related records
+5. **Relation loading** - Logic for boolean `include` flags to fetch related records
 
 **Example of generated code:**
 
@@ -306,7 +306,7 @@ private generateMethod(model: Model): string {
 
 Relations are handled during query building by:
 
-1. Detecting `include` in the args
+1. Detecting boolean `include` flags in the args (object-form `include` throws `OrkNotImplementedError`)
 2. Adding appropriate JOINs to the Kysely query
 3. Selecting related fields with prefixes
 4. Transforming the flat row result back into nested objects
@@ -349,7 +349,7 @@ Example directories like `examples/basic` serve as both integration tests and do
 
 - **Prisma schema compatibility**: Accept `.prisma` files without modification, including datasource, generator, and data model blocks
 - **Type-safe client API**: Generate a Prisma-like client with CRUD operations (`findMany`, `create`, `update`, etc.) that map directly to Kysely queries while preserving familiar argument shapes
-- **Relation loading**: Support `include` to fetch related records, parsing `@relation` attributes in schemas and generating properly typed relation fields, with relation filtering available via `where`. Architecture must accommodate nested writes without requiring a rewrite
+- **Relation loading**: Support `include` with boolean relation flags to fetch related records, parsing `@relation` attributes in schemas and generating properly typed relation fields, with relation filtering available via `where`. Object-form `include`, `select` projections, and nested writes are not implemented; the architecture must accommodate them without requiring a rewrite
 - **Kysely integration**: Wrap a user-supplied Kysely dialect and expose the instance via `$kysely` for advanced scenarios; no hidden engines or connection pools
 - **Programmatic migrations**: Provide `diff()` and `apply()` APIs that operate through Kysely, detect destructive changes, and track migration history
 - **CLI workflow**: Offer `ork init`, `ork generate`, `ork migrate`, and validation commands that orchestrate config loading, schema parsing, and code generation

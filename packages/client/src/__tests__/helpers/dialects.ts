@@ -3,9 +3,16 @@ import Database from 'better-sqlite3'
 import { Dialect, Kysely, PostgresDialect, sql, SqliteDialect } from 'kysely'
 import { Pool } from 'pg'
 
-import { createOrkClient as createPostgresClient, type OrkClient } from '../fixtures/generated-test-client'
-import { createOrkClient as createSqliteClient } from '../fixtures/generated-test-client-sqlite'
+import {
+  createOrkClient as createPostgresClient,
+  type OrkClient as PostgresOrkClient,
+} from '../fixtures/generated-test-client'
+import {
+  createOrkClient as createSqliteClient,
+  type OrkClient as SqliteOrkClient,
+} from '../fixtures/generated-test-client-sqlite'
 
+export type OrkClient = PostgresOrkClient | SqliteOrkClient
 export type DialectName = 'postgresql' | 'sqlite'
 
 /**

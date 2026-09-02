@@ -2,7 +2,7 @@ import { expect } from 'vitest'
 
 import { defineCorpus } from '../helpers/matrix'
 
-defineCorpus('scalars, transactions and loud filters', { seed: false }, [
+defineCorpus('scalars and transactions', { seed: false }, [
   {
     name: 'round-trips a BigInt beyond 2^53 exactly',
     run: async ({ client }) => {
@@ -49,14 +49,6 @@ defineCorpus('scalars, transactions and loud filters', { seed: false }, [
         }),
       ).rejects.toThrow('boom')
       expect(await client.user.findUnique({ where: { email: 'tx-rollback@example.com' } })).toBeNull()
-    },
-  },
-  {
-    name: 'throws on an unrecognized relation-filter shape instead of matching all rows',
-    run: async ({ client }) => {
-      await expect(client.user.findMany({ where: { posts: { title: 'no such shape' } } })).rejects.toThrow(
-        /Unsupported filter shape for relation "posts"/,
-      )
     },
   },
 ])

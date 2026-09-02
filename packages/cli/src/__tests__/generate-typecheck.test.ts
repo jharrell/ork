@@ -114,7 +114,7 @@ describe('generate command typecheck gate', () => {
 
     const result = await runGenerate()
     expect(result.exitCode).not.toBe(0)
-    expect(result.output).toMatch(/field type 'Role' is not supported/)
+    expect(result.output).toMatch(/User\.role: Field type 'Role' on the 'sqlite' dialect is not yet supported/)
   }, 30000)
 
   it('exits nonzero for a scalar list field', async () => {
@@ -130,7 +130,7 @@ describe('generate command typecheck gate', () => {
 
     const result = await runGenerate()
     expect(result.exitCode).not.toBe(0)
-    expect(result.output).toMatch(/scalar list fields/)
+    expect(result.output).toMatch(/User\.tags: Scalar list field \(String\[\]\) is not yet supported/)
   }, 30000)
 
   it('exits nonzero for an implicit many-to-many relation', async () => {
@@ -147,6 +147,6 @@ describe('generate command typecheck gate', () => {
 
     const result = await runGenerate()
     expect(result.exitCode).not.toBe(0)
-    expect(result.output).toMatch(/implicit many-to-many/)
+    expect(result.output).toMatch(/Post\.tags: Implicit many-to-many relation to Tag is not yet supported/)
   }, 30000)
 })
