@@ -57,12 +57,39 @@ alpha honestly — including known bugs.
 | `where` filters, incl. relation filters (`some`/`none`/`is`) | ✅ Works                                                  |
 | Interactive `$transaction(async (tx) => …)`                  | ✅ Works                                                  |
 | `$kysely` escape hatch (transaction-aware)                   | ✅ Works                                                  |
-| `include` (single level)                                     | ✅ Works on PostgreSQL and SQLite                         |
+| `include` (single level, boolean flags)                      | ✅ Works on PostgreSQL and SQLite                         |
 | Migrations (`diff` + `apply`)                                | ⚠️ Solid on SQLite; PostgreSQL has known re-diff bugs     |
-| `select`, nested writes, multi-level `include`               | ❌ Not yet supported                                      |
+| `select`, nested writes, multi-level `include`               | ❌ [Not yet supported](#not-yet-supported)                |
 | Enums, `@map`/`@@map`, composite keys, implicit many-to-many | ❌ Not yet supported                                      |
-| Aggregations, `groupBy`                                      | ❌ Not yet supported                                      |
+| Aggregations, `groupBy`                                      | ❌ [Not yet supported](#not-yet-supported)                |
 | MySQL                                                        | ❌ Not yet supported                                      |
+
+### Not yet supported
+
+This list is generated from the feature registry in `packages/client/src/unsupported.ts`. Every entry below throws.
+
+<!-- BEGIN GENERATED: unsupported (source: packages/client/src/unsupported.ts) -->
+
+| Feature                                                    | How it fails                                 | Workaround                                                                                                          | Tracking                                                 |
+| ---------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| The 'select' option                                        | throws `OrkNotImplementedError` at runtime   | Use $kysely for partial column projections.                                                                         | —                                                        |
+| Object-form include with arguments                         | throws `OrkNotImplementedError` at runtime   | Only boolean relation flags (e.g. { include: { posts: true } }) are supported.                                      | —                                                        |
+| The 'include' option where relation loading is unavailable | throws `OrkNotImplementedError` at runtime   | Only findMany, findFirst, and findUnique load relations, and only on models that declare them.                      | —                                                        |
+| Nested write                                               | throws `OrkNotImplementedError` at runtime   | Create, connect, or update related records in separate calls.                                                       | —                                                        |
+| Cursor-based pagination ('cursor')                         | throws `OrkNotImplementedError` at runtime   | Use offset pagination ('skip' and 'take') instead.                                                                  | —                                                        |
+| The 'distinct' option                                      | throws `OrkNotImplementedError` at runtime   | Use $kysely for distinct queries.                                                                                   | —                                                        |
+| The 'skipDuplicates' option in createMany                  | throws `OrkNotImplementedError` at runtime   | Insert rows individually with upsert, or use $kysely.                                                               | —                                                        |
+| Case-insensitive filtering (mode: 'insensitive')           | throws `OrkNotImplementedError` at runtime   | Normalize casing in the column or use $kysely.                                                                      | —                                                        |
+| Filter operator                                            | throws `OrkNotImplementedError` at runtime   | Use a supported operator (equals, not, in, notIn, lt, lte, gt, gte, contains, startsWith, endsWith) or use $kysely. | —                                                        |
+| Relation filter shape                                      | throws `OrkNotImplementedError` at runtime   | Use some, every, or none on list relations, or is / isNot on single relations.                                      | —                                                        |
+| Aggregations (aggregate)                                   | not present on the client (TypeScript error) | Use $kysely for aggregate queries.                                                                                  | —                                                        |
+| Grouping (groupBy)                                         | not present on the client (TypeScript error) | Use $kysely for grouped queries.                                                                                    | —                                                        |
+| Raw queries ($queryRaw / $executeRaw)                      | not present on the client (TypeScript error) | Use $kysely.sql for raw SQL.                                                                                        | [#68](https://github.com/jharrell/ork-tracker/issues/68) |
+| Scalar list field                                          | `ork generate` fails                         | Model the list as a related table, or store it as a JSON string.                                                    | [#8](https://github.com/jharrell/ork-tracker/issues/8)   |
+| Implicit many-to-many relation                             | `ork generate` fails                         | Declare an explicit join model with two relation fields.                                                            | [#13](https://github.com/jharrell/ork-tracker/issues/13) |
+| Field type                                                 | `ork generate` fails                         | Use a scalar type the dialect supports, or store the value as a string.                                             | —                                                        |
+
+<!-- END GENERATED: unsupported -->
 
 ## Key Packages
 

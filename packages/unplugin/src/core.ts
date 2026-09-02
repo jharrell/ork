@@ -20,6 +20,53 @@ import { ProductionBuildManager } from './production-build.js'
 import type { BuildContext, GeneratedClientCode, GeneratedTypes, OrkPluginOptions, SchemaChangeInfo } from './types.js'
 import { VirtualModuleManager, VirtualModuleResolver, VirtualTypeGenerator } from './virtual-modules.js'
 
+/** One schema feature the client generator cannot emit correct code for. */
+export interface UnsupportedSchemaField {
+  readonly model: string
+  readonly field: string
+  readonly reason: string
+}
+
+/**
+ * Same wording the CLI uses in `ork generate`
+ * (packages/cli/src/commands/generate.ts) so an aborted build reads identically
+ * whether it came from the CLI or from a bundler.
+ */
+function formatUnsupportedSchemaFeatures(fields: readonly UnsupportedSchemaField[]): string {
+  const list = fields.map((u) => `  - ${u.model}.${u.field}: ${u.reason}`).join('\n')
+  return `Unsupported schema features — generation aborted:\n${list}`
+}
+
+/**
+ * Thrown instead of emitting a client for a schema the generator cannot
+ * translate. Distinguished from ordinary generation failures because it must
+ * never degrade to the fallback client: a fallback that quietly compiles is the
+ * failure mode this abort exists to eliminate.
+ */
+export class UnsupportedSchemaError extends Error {
+  readonly fields: readonly UnsupportedSchemaField[]
+
+  constructor(fields: readonly UnsupportedSchemaField[]) {
+    super(formatUnsupportedSchemaFeatures(fields))
+    this.name = 'UnsupportedSchemaError'
+    this.fields = fields
+  }
+}
+
+/**
+ * Refuse to emit a client for scalar list fields, implicit many-to-many
+ * relations, or field types the dialect cannot store — the generator would
+ * otherwise produce code that silently corrupts data or runs wrong SQL.
+ * Both generation paths (virtual modules and the written client file) call this
+ * before any codegen, matching `ork generate`.
+ */
+export function assertSchemaIsSupported(generator: ClientGenerator): void {
+  const unsupported = generator.getUnsupportedFields()
+  if (unsupported.length === 0) return
+
+  throw new UnsupportedSchemaError(unsupported.map(({ model, field, reason }) => ({ model, field, reason })))
+}
+
 export const unpluginOrk: UnpluginInstance<OrkPluginOptions, false> = createUnplugin<OrkPluginOptions, false>(
   (options = {}) => {
     const {
@@ -160,14 +207,17 @@ export const unpluginOrk: UnpluginInstance<OrkPluginOptions, false> = createUnpl
       const outputDir = config.generator?.output || getDefaultOutputDir(configPath)
       const resolvedOutputDir = path.resolve(configDir, outputDir)
 
-      await fs.mkdir(resolvedOutputDir, { recursive: true })
-
       const generator = new ClientGenerator(parseResult.ast, {
         includeTypes: true,
         includeJSDoc: true,
         esModules: true,
         config: generatorConfig,
       })
+
+      // Abort before touching the filesystem, exactly like `ork generate`.
+      assertSchemaIsSupported(generator)
+
+      await fs.mkdir(resolvedOutputDir, { recursive: true })
 
       const clientContent = generator.generateClientModule()
       const clientPath = path.join(resolvedOutputDir, 'index.ts')
@@ -378,6 +428,10 @@ export const unpluginOrk: UnpluginInstance<OrkPluginOptions, false> = createUnpl
           esModules: true,
         })
 
+        // Abort before codegen, exactly like `ork generate`. Deliberately not
+        // swallowed below: this must never become the fallback client.
+        assertSchemaIsSupported(generator)
+
         // Generate the client code
         const clientCode = generator.generateClientModule()
 
@@ -400,6 +454,9 @@ export const unpluginOrk: UnpluginInstance<OrkPluginOptions, false> = createUnpl
           dialect,
         }
       } catch (error) {
+        if (error instanceof UnsupportedSchemaError) {
+          throw error
+        }
         const errorMessage = error instanceof Error ? error.message : String(error)
         devOutput.debug(`Client generation error: ${errorMessage}`)
         return null
@@ -446,7 +503,20 @@ export const unpluginOrk: UnpluginInstance<OrkPluginOptions, false> = createUnpl
 
       // Generate both traditional types and the client module
       const generatedTypes = generateTypesFromSchema(schemaContent)
-      generatedClientCode = await generateClientModuleFromSchema(schemaContent)
+
+      // Schema features the generator cannot translate abort generation instead
+      // of degrading to the fallback client. Types are unaffected, so they are
+      // still published — only the client becomes a hard error.
+      let unsupportedSchema: UnsupportedSchemaError | null = null
+      try {
+        generatedClientCode = await generateClientModuleFromSchema(schemaContent)
+      } catch (error) {
+        if (!(error instanceof UnsupportedSchemaError)) {
+          throw error
+        }
+        unsupportedSchema = error
+        generatedClientCode = null
+      }
 
       // Check if parsing was successful (errors are already shown by generateTypesFromSchema)
       const hasErrors =
@@ -470,6 +540,27 @@ export const unpluginOrk: UnpluginInstance<OrkPluginOptions, false> = createUnpl
         changeInfo.errors = ['Schema parsing failed']
         onSchemaChange?.(changeInfo)
         return
+      }
+
+      if (unsupportedSchema) {
+        moduleManager.updateModules({
+          types: typeGenerator.generateTypesModule(generatedTypes),
+          index: typeGenerator.generateIndexModule(generatedTypes, false),
+          generated: typeGenerator.generateGeneratedTypesModule(generatedTypes),
+          client: typeGenerator.generateErrorModule(unsupportedSchema.message),
+          'client-types': typeGenerator.generateErrorModule(unsupportedSchema.message),
+        })
+
+        // console.error, not devOutput: an aborted build must reach the terminal
+        // even under `silent`, and the watch path swallows thrown errors.
+        console.error(unsupportedSchema.message)
+
+        changeInfo.errors = [...(changeInfo.errors || []), unsupportedSchema.message]
+        onSchemaChange?.(changeInfo)
+
+        // Fail the build / dev-server load. No client is written and no
+        // migration runs for a schema we cannot generate correct code for.
+        throw unsupportedSchema
       }
 
       // Use production build manager for optimized builds
@@ -540,6 +631,15 @@ export const unpluginOrk: UnpluginInstance<OrkPluginOptions, false> = createUnpl
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error)
           changeInfo.errors = [...(changeInfo.errors || []), message]
+
+          if (error instanceof UnsupportedSchemaError) {
+            // Never downgraded to a warning: the client file must not be
+            // stale-but-present while the schema uses features we cannot emit.
+            console.error(message)
+            onSchemaChange?.(changeInfo)
+            throw error
+          }
+
           devOutput.warn(`Client generation failed: ${message}`)
         }
       }
@@ -755,6 +855,12 @@ export const unpluginOrk: UnpluginInstance<OrkPluginOptions, false> = createUnpl
             await productionManager.cleanCache()
           }
         } catch (error) {
+          if (error instanceof UnsupportedSchemaError) {
+            // Already reported and already reflected in the virtual modules.
+            // Fail the build in every mode, matching `ork generate`.
+            throw error
+          }
+
           devOutput.showSchemaError([
             {
               message: `Build start error: ${String(error)}`,

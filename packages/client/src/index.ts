@@ -7,8 +7,12 @@
  */
 
 export type { ModelFactory, OrkClientOptions } from './client'
-export { OrkClientBase, OrkNotImplementedError } from './client'
+export { OrkClientBase } from './client'
 export { OrkClientBase as OrkClient } from './client'
+
+// Unsupported-feature registry (single source of truth; see jharrell/ork-tracker#9, #58)
+export type { UnsupportedEnforcement, UnsupportedFeature, UnsupportedFeatureId } from './unsupported'
+export { OrkNotImplementedError, UNSUPPORTED_FEATURES, unsupportedFeature } from './unsupported'
 
 // Core types
 export type {
@@ -16,7 +20,6 @@ export type {
   GeneratedField,
   GeneratedModel,
   GeneratorConfig,
-  ModelOperations,
   OrkClientConfig,
   OrkDatasourceConfig,
   PRISMA_TO_KYSELY_TYPES,

@@ -22,16 +22,6 @@ export interface OrkClientOptions<TSchema extends DatabaseSchema> {
 }
 
 /**
- * Error thrown when an unsupported or unimplemented Prisma feature/option is used at runtime.
- */
-export class OrkNotImplementedError extends Error {
-  constructor(feature: string, hint?: string) {
-    super(`${feature} is not yet supported in Ork alpha${hint ? `. ${hint}` : '.'}`)
-    this.name = 'OrkNotImplementedError'
-  }
-}
-
-/**
  * Minimal runtime client that manages the Kysely instance and exposes hooks for generated CRUD operations.
  * Generated client modules extend this class and register their model operations via `registerModel`.
  */

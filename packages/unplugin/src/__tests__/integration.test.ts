@@ -408,6 +408,9 @@ describe('Recommended Path Integration Tests', () => {
   })
 
   describe('Complex Schema Handling', () => {
+    // COMPLEX_SCHEMA uses implicit many-to-many relations and an enum field, so
+    // client generation aborts (see unsupported-schema.test.ts). Type generation
+    // is independent and must still publish usable types.
     it('should generate comprehensive types from complex schema', async () => {
       const plugin = unpluginOrk.raw({
         schema: '/test/complex.prisma',
@@ -417,7 +420,7 @@ describe('Recommended Path Integration Tests', () => {
 
       // Trigger type generation
       if (plugin.buildStart) {
-        await plugin.buildStart.call({})
+        await expect(plugin.buildStart.call({})).rejects.toThrow('Unsupported schema features — generation aborted:')
       }
 
       const load = plugin.load
@@ -469,7 +472,7 @@ describe('Recommended Path Integration Tests', () => {
       })
 
       if (plugin.buildStart) {
-        await plugin.buildStart.call({})
+        await expect(plugin.buildStart.call({})).rejects.toThrow('Unsupported schema features — generation aborted:')
       }
 
       const load = plugin.load
@@ -577,7 +580,9 @@ describe('Recommended Path Integration Tests', () => {
 
     it('should optimize virtual modules for production', async () => {
       const plugin = unpluginOrk.raw({
-        schema: '/test/complex.prisma',
+        // Production module optimization is orthogonal to unsupported features,
+        // so use a schema the client generator fully supports.
+        schema: '/test/schema.prisma',
         root: '/test',
         production: {
           optimize: true,
@@ -787,7 +792,9 @@ describe('Recommended Path Integration Tests', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
       const plugin = unpluginOrk.raw({
-        schema: '/test/complex.prisma',
+        // Debug logging is orthogonal to unsupported features; a schema that
+        // aborts would cut the run short before the debug output under test.
+        schema: '/test/schema.prisma',
         root: '/test',
         debug: true,
       })

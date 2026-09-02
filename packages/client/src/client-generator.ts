@@ -10,6 +10,7 @@ import type { FieldAST, ModelAST, SchemaAST } from '@ork-orm/schema-parser'
 import dedent from 'dedent'
 
 import { type GeneratedField, PRISMA_TO_TS_TYPES } from './types'
+import { type UnsupportedFeatureId, unsupportedMessage } from './unsupported.js'
 
 export interface ClientGeneratorOptions {
   /** Database dialect for transformations */
@@ -55,11 +56,20 @@ export class ClientGenerator {
 
     const imports = this.generateImports(esModules)
     const typeDefinitions = includeTypes ? this.generateTypeDefinitions() : ''
+    const runtimeGuards = this.generateRuntimeGuards()
     const modelOperations = this.generateModelOperationsBlock()
     const clientClass = this.generateClientClass()
     const factoryFunction = this.generateClientFactory()
 
-    return [this.generateFileHeader(), imports, typeDefinitions, modelOperations, clientClass, factoryFunction]
+    return [
+      this.generateFileHeader(),
+      imports,
+      typeDefinitions,
+      runtimeGuards,
+      modelOperations,
+      clientClass,
+      factoryFunction,
+    ]
       .filter(Boolean)
       .join('\n\n')
   }
@@ -80,11 +90,83 @@ export class ClientGenerator {
     const importStyle = esModules ? 'import' : 'const'
     const fromStyle = esModules ? 'from' : '= require'
 
-    return dedent`
+    const imports = dedent`
       ${importStyle} { OrkClientBase, OrkNotImplementedError } ${fromStyle} '@ork-orm/client'
       ${importStyle} { createKyselyDialect, loadOrkConfig } ${fromStyle} '@ork-orm/config'
       ${importStyle} { Kysely, sql } ${fromStyle} 'kysely'
       ${importStyle} type { Dialect, ExpressionBuilder, SelectQueryBuilder, UpdateQueryBuilder, DeleteQueryBuilder, Expression, SqlBool, ReferenceExpression, Selectable, LogConfig } ${fromStyle} 'kysely'
+    `
+
+    if (!esModules) {
+      return imports
+    }
+
+    // Re-exported so consumers of the generated client can catch / instanceof
+    // the error without depending on @ork-orm/client directly.
+    return `${imports}\n\nexport { OrkNotImplementedError }`
+  }
+
+  /**
+   * Guards for unsupported inputs.
+   */
+  private generateRuntimeGuards(): string {
+    return dedent`
+      /**
+       * A field filter is an operator object (\`{ gt: 1 }\`). Arrays are \`in\`-style
+       * value lists and Dates are scalar values, so neither is a filter object.
+       */
+      function isFilterObject(value: unknown): value is object {
+        return typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)
+      }
+
+      /** Column projection via \`select\` is unimplemented on every method. */
+      function assertNoSelect(args: unknown): void {
+        if (typeof args === 'object' && args !== null && 'select' in args && args.select !== undefined) {
+          throw new OrkNotImplementedError('select')
+        }
+      }
+
+      /** \`include\` on a surface that implements no relation loading at all. */
+      function assertNoIncludeOption(args: unknown, context: string): void {
+        if (typeof args === 'object' && args !== null && 'include' in args && args.include !== undefined) {
+          throw new OrkNotImplementedError('include-unavailable', \`on \${context}\`)
+        }
+      }
+
+      /** Read-method options: \`select\`, plus \`cursor\`/\`distinct\` where the method accepts them. */
+      function assertSupportedFindArgs(args: unknown, opts: { cursor: boolean; distinct: boolean }): void {
+        assertNoSelect(args)
+        if (typeof args !== 'object' || args === null) return
+        if (opts.cursor && 'cursor' in args && args.cursor !== undefined) {
+          throw new OrkNotImplementedError('cursor-pagination')
+        }
+        if (opts.distinct && 'distinct' in args && args.distinct !== undefined) {
+          throw new OrkNotImplementedError('distinct')
+        }
+      }
+
+      /** Only boolean relation flags are loadable; \`{ posts: { where } }\` is not. */
+      function assertBooleanInclude(args: unknown): void {
+        if (typeof args !== 'object' || args === null || !('include' in args)) return
+        const include = args.include
+        if (typeof include !== 'object' || include === null) return
+        for (const [relKey, relVal] of Object.entries(include)) {
+          if (relVal !== undefined && relVal !== false && relVal !== true) {
+            throw new OrkNotImplementedError('nested-include', \`for relation "\${relKey}"\`)
+          }
+        }
+      }
+
+      /** Relation keys in create/update payloads mean a nested write. */
+      function assertNoNestedWrites(data: unknown, relations: readonly string[], context: string): void {
+        if (typeof data !== 'object' || data === null) return
+        const payload = data as Record<string, unknown>
+        for (const relName of relations) {
+          if (payload[relName] !== undefined) {
+            throw new OrkNotImplementedError('nested-write', \`on relation "\${relName}" in \${context}\`)
+          }
+        }
+      }
     `
   }
 
@@ -105,7 +187,7 @@ export class ClientGenerator {
 
       ${modelInputTypes}
 
-      ${this.generateCRUDInterfaces()}
+      ${this.generateIncludeInterfaces()}
     `
   }
 
@@ -352,10 +434,13 @@ export class ClientGenerator {
    * (would silently corrupt on write), and implicit many-to-many relations
    * (would emit nonsense SQL). Callers fail generation loudly on these rather
    * than emitting a client that lies, corrupts data, or does not compile.
+   *
+   * `feature` is the registry id, so callers can branch without parsing prose;
+   * `reason` is the registry's own wording plus the concrete field detail.
    */
-  getUnsupportedFields(): Array<{ model: string; field: string; reason: string }> {
+  getUnsupportedFields(): Array<{ model: string; field: string; feature: UnsupportedFeatureId; reason: string }> {
     const modelNames = new Set(this.schemaAST.models.map((m) => m.name))
-    const unsupported: Array<{ model: string; field: string; reason: string }> = []
+    const unsupported: Array<{ model: string; field: string; feature: UnsupportedFeatureId; reason: string }> = []
 
     for (const model of this.schemaAST.models) {
       for (const field of model.fields) {
@@ -367,7 +452,8 @@ export class ClientGenerator {
             unsupported.push({
               model: model.name,
               field: field.name,
-              reason: 'implicit many-to-many relations are not yet supported',
+              feature: 'implicit-many-to-many',
+              reason: unsupportedMessage('implicit-many-to-many', `to ${field.fieldType}`),
             })
           }
           continue
@@ -379,7 +465,8 @@ export class ClientGenerator {
           unsupported.push({
             model: model.name,
             field: field.name,
-            reason: `scalar list fields (${field.fieldType}[]) are not yet supported`,
+            feature: 'scalar-list-fields',
+            reason: unsupportedMessage('scalar-list-fields', `(${field.fieldType}[])`),
           })
           continue
         }
@@ -388,7 +475,11 @@ export class ClientGenerator {
           unsupported.push({
             model: model.name,
             field: field.name,
-            reason: `field type '${field.fieldType}' is not supported for the '${this.dialect}' dialect`,
+            feature: 'unsupported-field-type',
+            reason: unsupportedMessage(
+              'unsupported-field-type',
+              `'${field.fieldType}' on the '${this.dialect}' dialect`,
+            ),
           })
         }
       }
@@ -398,16 +489,31 @@ export class ClientGenerator {
   }
 
   /**
-   * An implicit many-to-many relation: a list relation whose related model
-   * also points back with a list relation (no explicit join model / FK).
+   * The relation name from `@relation("Name", ...)` or `@relation(name: "Name")`.
    */
+  private getRelationName(field: FieldAST): string | undefined {
+    const relationAttr = field.attributes.find((attr) => attr.name === 'relation')
+    if (!relationAttr) return undefined
+
+    const nameArg = relationAttr.args.find((arg) => arg.name === undefined || arg.name === 'name')
+    return typeof nameArg?.value === 'string' ? nameArg.value : undefined
+  }
+
   private isImplicitManyToMany(model: ModelAST, field: FieldAST): boolean {
     if (!field.isList) return false
 
     const relatedModel = this.findModelByName(field.fieldType)
     if (!relatedModel) return false
 
-    return this.getModelRelations(relatedModel).some((r) => r.relatedModel === model.name && r.isArray)
+    const relationName = this.getRelationName(field)
+
+    return relatedModel.fields.some(
+      (candidate) =>
+        candidate !== field &&
+        candidate.isList &&
+        candidate.fieldType === model.name &&
+        this.getRelationName(candidate) === relationName,
+    )
   }
 
   private generateDatabaseSchemaInterface(): string {
@@ -438,7 +544,7 @@ export class ClientGenerator {
         equals?: T
         in?: T[]
         notIn?: T[]
-        not?: BaseFilter<T> | T
+        not?: T
       }
 
       /**
@@ -459,7 +565,6 @@ export class ClientGenerator {
         contains?: string
         startsWith?: string
         endsWith?: string
-        // mode?: 'default' | 'insensitive' // Deferred: case-insensitive search
       }
 
       /**
@@ -816,7 +921,7 @@ ${fields.join('\n')}
    */
   private generateArgsTypes(model: ModelAST): string {
     // Models with no relations get no `XInclude` interface (see
-    // generateCRUDInterfaces), so the args types must not reference one.
+    // generateIncludeInterfaces), so the args types must not reference one.
     const includeType = `${model.name}Include`
     const includeLine = this.getModelRelations(model).length > 0 ? `include?: ${includeType}` : ''
 
@@ -847,7 +952,6 @@ ${fields.join('\n')}
 
       export type ${model.name}CreateManyArgs = {
         data: ${model.name}CreateInput[]
-        skipDuplicates?: boolean
       }
 
       export type ${model.name}UpdateArgs = {
@@ -880,36 +984,21 @@ ${fields.join('\n')}
     `
   }
 
-  private generateCRUDInterfaces(): string {
-    // Generate relation include types
-    const relationIncludeTypes = this.schemaAST.models
+  /**
+   * Relation `include` maps, one per model with relations. Models without
+   * relations get no interface, so args types must not reference one.
+   */
+  private generateIncludeInterfaces(): string {
+    return this.schemaAST.models
       .map((model) => {
         const relations = this.getModelRelations(model)
         if (relations.length === 0) return ''
 
         const includeFields = relations.map((rel) => `  ${rel.fieldName}?: boolean`).join('\n')
-        return `export interface ${model.name}Include {
-${includeFields}
-}`
+        return `export interface ${model.name}Include {\n${includeFields}\n}`
       })
       .filter(Boolean)
       .join('\n\n')
-
-    return `${
-      relationIncludeTypes ? relationIncludeTypes + '\n\n' : ''
-    }export interface ModelCRUDOperations<T, TInclude = any> {
-  findMany(args?: { where?: Partial<T>; orderBy?: any; take?: number; skip?: number; include?: TInclude }): Promise<T[]>
-  findUnique(args: { where: Partial<T>; include?: TInclude }): Promise<T | null>
-  findFirst(args?: { where?: Partial<T>; orderBy?: any; include?: TInclude }): Promise<T | null>
-  create(args: { data: any }): Promise<T>
-  createMany(args: { data: any[] }): Promise<{ count: number }>
-  update(args: { where: Partial<T>; data: any }): Promise<T>
-  updateMany(args: { where?: Partial<T>; data: any }): Promise<{ count: number }>
-  upsert(args: { where: Partial<T>; create: any; update: any }): Promise<T>
-  delete(args: { where: Partial<T> }): Promise<T>
-  deleteMany(args?: { where?: Partial<T> }): Promise<{ count: number }>
-  count(args?: { where?: Partial<T> }): Promise<number>
-}`
   }
 
   private generateModelOperationsBlock(): string {
@@ -938,6 +1027,17 @@ ${includeFields}
     const uniqueFieldNames = this.getUniqueFieldNames(model)
 
     const hasRelations = relations.length > 0
+
+    // assert no include option for read methods, boolean include for write methods
+    const readIncludeGuard = (method: string): string =>
+      hasRelations ? 'assertBooleanInclude(args)' : `assertNoIncludeOption(args, '${model.name}.${method}')`
+    const writeArgsGuards = (method: string): string =>
+      ['assertNoSelect(args)', `assertNoIncludeOption(args, '${model.name}.${method}')`].join('\n')
+    // A relation key in a create/update payload is a nested write; models
+    // without relations cannot receive one, so they get no guard.
+    const relationNameList = relations.map((rel) => `'${rel.fieldName}'`).join(', ')
+    const nestedWriteGuard = (method: string): string =>
+      hasRelations ? `assertNoNestedWrites(data, [${relationNameList}], '${model.name}.${method}')` : ''
 
     // JOINs for to-one includes + runtime relation metadata for result assembly.
     const includeJoins = this.generateIncludeJoins(model, relations)
@@ -1057,25 +1157,8 @@ ${includeFields}
 
         ${findManyOverloads}
         async findMany<T extends ${model.name}FindManyArgs = {}>(args?: T): ${findManyReturnType} {
-          if (args && (args as Record<string, unknown>).select !== undefined) {
-            throw new OrkNotImplementedError("The 'select' option", 'Use $kysely for partial column projections.')
-          }
-          if (args && 'cursor' in args && (args as Record<string, unknown>).cursor !== undefined) {
-            throw new OrkNotImplementedError("Cursor-based pagination ('cursor')", "Use offset pagination ('skip' and 'take') instead.")
-          }
-          if (args && 'distinct' in args && (args as Record<string, unknown>).distinct !== undefined) {
-            throw new OrkNotImplementedError("Distinct queries ('distinct')", 'Use $kysely for distinct queries.')
-          }
-          if (args?.include) {
-            for (const [relKey, relVal] of Object.entries(args.include)) {
-              if (relVal !== undefined && relVal !== false && relVal !== true) {
-                throw new OrkNotImplementedError(
-                  'Nested include options for relation "' + relKey + '"',
-                  'Only boolean flags (e.g. { include: { ' + relKey + ': true } }) are supported in alpha.'
-                )
-              }
-            }
-          }
+          assertSupportedFindArgs(args, { cursor: true, distinct: true })
+          ${readIncludeGuard('findMany')}
           let query = this.kysely
             .selectFrom('${tableName}')
             .selectAll('${tableName}')
@@ -1110,19 +1193,8 @@ ${includeFields}
         }
         ${findUniqueOverloads}
         async findUnique<T extends ${model.name}FindUniqueArgs>(args: T): ${findOneReturnType} {
-          if (args && (args as Record<string, unknown>).select !== undefined) {
-            throw new OrkNotImplementedError("The 'select' option", 'Use $kysely for partial column projections.')
-          }
-          if (args?.include) {
-            for (const [relKey, relVal] of Object.entries(args.include)) {
-              if (relVal !== undefined && relVal !== false && relVal !== true) {
-                throw new OrkNotImplementedError(
-                  'Nested include options for relation "' + relKey + '"',
-                  'Only boolean flags (e.g. { include: { ' + relKey + ': true } }) are supported in alpha.'
-                )
-              }
-            }
-          }
+          assertSupportedFindArgs(args, { cursor: false, distinct: false })
+          ${readIncludeGuard('findUnique')}
           let query = this.kysely
             .selectFrom('${tableName}')
             .selectAll('${tableName}')
@@ -1137,22 +1209,8 @@ ${includeFields}
         }
         ${findFirstOverloads}
         async findFirst<T extends ${model.name}FindFirstArgs = {}>(args?: T): ${findOneReturnType} {
-          if (args && (args as Record<string, unknown>).select !== undefined) {
-            throw new OrkNotImplementedError("The 'select' option", 'Use $kysely for partial column projections.')
-          }
-          if (args && 'distinct' in args && (args as Record<string, unknown>).distinct !== undefined) {
-            throw new OrkNotImplementedError("Distinct queries ('distinct')", 'Use $kysely for distinct queries.')
-          }
-          if (args?.include) {
-            for (const [relKey, relVal] of Object.entries(args.include)) {
-              if (relVal !== undefined && relVal !== false && relVal !== true) {
-                throw new OrkNotImplementedError(
-                  'Nested include options for relation "' + relKey + '"',
-                  'Only boolean flags (e.g. { include: { ' + relKey + ': true } }) are supported in alpha.'
-                )
-              }
-            }
-          }
+          assertSupportedFindArgs(args, { cursor: true, distinct: true })
+          ${readIncludeGuard('findFirst')}
           let query = this.kysely
             .selectFrom('${tableName}')
             .selectAll('${tableName}')
@@ -1182,6 +1240,7 @@ ${includeFields}
         }
 
         async create(args: ${model.name}CreateArgs): Promise<${model.name}> {
+          ${writeArgsGuards('create')}
           const prepared = this.prepareCreateData(args.data)
           const result = await this.kysely
             .insertInto('${tableName}')
@@ -1191,8 +1250,9 @@ ${includeFields}
           return this.transformSelectResult(result)
         }
         async createMany(args: ${model.name}CreateManyArgs): Promise<{ count: number }> {
-          if (args && (args as Record<string, unknown>).skipDuplicates !== undefined && args.skipDuplicates) {
-            throw new OrkNotImplementedError("The 'skipDuplicates' option in createMany", 'Insert rows with individual upsert calls or use $kysely.')
+          ${writeArgsGuards('createMany')}
+          if ((args as Record<string, unknown>).skipDuplicates) {
+            throw new OrkNotImplementedError('skip-duplicates')
           }
           const dataArray = args.data.map(item => this.prepareCreateData(item))
           if (dataArray.length === 0) {
@@ -1207,6 +1267,7 @@ ${includeFields}
         }
 
         async update(args: ${model.name}UpdateArgs): Promise<${model.name}> {
+          ${writeArgsGuards('update')}
           const prepared = this.prepareUpdateData(args.data)
           let query = this.kysely.updateTable('${tableName}').set(prepared as any)
           query = query.where(eb => ${whereHelperName}(this.kysely, eb, args.where))
@@ -1215,6 +1276,7 @@ ${includeFields}
         }
 
         async updateMany(args: ${model.name}UpdateManyArgs): Promise<{ count: number }> {
+          ${writeArgsGuards('updateMany')}
           const prepared = this.prepareUpdateData(args.data)
           let query = this.kysely.updateTable('${tableName}').set(prepared as any)
 
@@ -1225,6 +1287,7 @@ ${includeFields}
         }
 
         async upsert(args: ${model.name}UpsertArgs): Promise<${model.name}> {
+          ${writeArgsGuards('upsert')}
           const createData = this.prepareCreateData(args.create)
           const updateData = this.prepareUpdateData(args.update)
           ${conflictFieldSetup}
@@ -1239,6 +1302,7 @@ ${includeFields}
         }
 
         async delete(args: ${model.name}DeleteArgs): Promise<${model.name}> {
+          ${writeArgsGuards('delete')}
           let query = this.kysely.deleteFrom('${tableName}')
           query = query.where(eb => ${whereHelperName}(this.kysely, eb, args.where))
           const result = await query.returningAll().executeTakeFirstOrThrow()
@@ -1246,6 +1310,7 @@ ${includeFields}
         }
 
         async deleteMany(args?: ${model.name}DeleteManyArgs): Promise<{ count: number }> {
+          ${writeArgsGuards('deleteMany')}
           let query = this.kysely.deleteFrom('${tableName}')
 
           query = query.where(eb => ${whereHelperName}(this.kysely, eb, args?.where ?? {}))
@@ -1255,6 +1320,8 @@ ${includeFields}
         }
 
         async count(args?: ${model.name}CountArgs): Promise<number> {
+          assertSupportedFindArgs(args, { cursor: true, distinct: true })
+          assertNoIncludeOption(args, '${model.name}.count')
           let query = this.kysely
             .selectFrom('${tableName}')
             .select(eb => eb.fn.count('id').as('count'))
@@ -1267,18 +1334,7 @@ ${includeFields}
 
         ${conflictResolver}
         private prepareCreateData(data: ${model.name}CreateInput): Record<string, unknown> {
-          ${
-            relations.length
-              ? `for (const relName of [${relations.map((r) => `'${r.fieldName}'`).join(', ')}]) {
-            if ((data as Record<string, unknown>)[relName] !== undefined) {
-              throw new OrkNotImplementedError(
-                \`Nested write on relation "\${relName}" in ${model.name}.create\`,
-                'Nested writes (create/connect/disconnect) are not yet supported. Create related records independently.'
-              )
-            }
-          }`
-              : ''
-          }
+          ${nestedWriteGuard('create')}
           const prepared: Record<string, unknown> = {}
 
           ${this.generateFieldTransformationMethods(model, 'create')}
@@ -1287,18 +1343,7 @@ ${includeFields}
         }
 
         private prepareUpdateData(data: ${model.name}UpdateInput): Record<string, unknown> {
-          ${
-            relations.length
-              ? `for (const relName of [${relations.map((r) => `'${r.fieldName}'`).join(', ')}]) {
-            if ((data as Record<string, unknown>)[relName] !== undefined) {
-              throw new OrkNotImplementedError(
-                \`Nested write on relation "\${relName}" in ${model.name}.update\`,
-                'Nested writes (create/connect/disconnect) are not yet supported. Update related records independently.'
-              )
-            }
-          }`
-              : ''
-          }
+          ${nestedWriteGuard('update')}
           const prepared: Record<string, unknown> = {}
 
           ${this.generateFieldTransformationMethods(model, 'update')}
@@ -1417,7 +1462,7 @@ ${includeFields}
               }
 
               if (conditions.length === 0) {
-                throw new Error('Unsupported filter shape for relation "${rel.fieldName}": expected some, every, or none. Relation-filter shorthand is not yet supported.')
+                throw new OrkNotImplementedError('relation-filter-shape', 'on relation "${rel.fieldName}"')
               }
 
               return eb.and(conditions)
@@ -1465,7 +1510,7 @@ ${includeFields}
             }
 
             if (conditions.length === 0) {
-              throw new Error('Unsupported filter shape for relation "${rel.fieldName}": expected is or isNot. Relation-filter shorthand is not yet supported.')
+              throw new OrkNotImplementedError('relation-filter-shape', 'on relation "${rel.fieldName}"')
             }
 
             return eb.and(conditions)
@@ -1521,13 +1566,7 @@ ${includeFields}
         if (value === null) {
           return eb(qualifiedField, 'is', null)
         }
-        if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-          if ('mode' in value && (value as Record<string, unknown>).mode === 'insensitive') {
-            throw new OrkNotImplementedError(
-              'Case-insensitive filter (mode: "insensitive") on field "' + field + '"',
-              'Case-insensitive filtering is not yet supported.'
-            )
-          }
+        if (isFilterObject(value)) {
           const conditions: Expression<SqlBool>[] = []
 
           for (const [operator, operatorValue] of Object.entries(value)) {
@@ -1558,6 +1597,10 @@ ${includeFields}
               case 'not':
                 if (operatorValue === null) {
                   conditions.push(eb(qualifiedField, 'is not', null))
+                } else if (isFilterObject(operatorValue)) {
+                  // \`not: { contains: 'x' }\` would otherwise compare the column
+                  // against "[object Object]" and quietly match nothing.
+                  throw new OrkNotImplementedError('filter-operator', \`'not' with a nested filter object on field "\${field}"\`)
                 } else {
                   conditions.push(eb(qualifiedField, '!=', ${transformWhereName}(field, operatorValue)))
                 }
@@ -1581,6 +1624,17 @@ ${includeFields}
               case 'endsWith':
                 conditions.push(eb(qualifiedField, 'like', \`%\${operatorValue}\`))
                 break
+              case 'mode':
+                // 'default' is Prisma's default collation and needs no SQL.
+                if (operatorValue === 'insensitive') {
+                  throw new OrkNotImplementedError('case-insensitive-mode', \`on field "\${field}"\`)
+                }
+                if (operatorValue !== 'default') {
+                  throw new OrkNotImplementedError('filter-operator', \`'mode' on field "\${field}"\`)
+                }
+                break
+              default:
+                throw new OrkNotImplementedError('filter-operator', \`'\${operator}' on field "\${field}"\`)
             }
           }
 
