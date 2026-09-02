@@ -2,53 +2,77 @@
  * Tests for the client generator with FieldTranslator integration
  */
 
-import type { SchemaAST } from '@ork-orm/schema-parser'
+import type { AttributeAST, FieldAST, SchemaAST, Span } from '@ork-orm/schema-parser'
 import { describe, expect, it } from 'vitest'
 
 import { ClientGenerator } from '../client-generator.js'
 
-describe('ClientGenerator', () => {
-  const mockSchema: SchemaAST = {
-    models: [
-      {
-        name: 'User',
-        fields: [
-          {
-            name: 'id',
-            fieldType: 'Int',
-            isOptional: false,
-            isList: false,
-            attributes: [{ name: 'id', args: [] }],
-          },
-          {
-            name: 'email',
-            fieldType: 'String',
-            isOptional: false,
-            isList: false,
-            attributes: [],
-          },
-          {
-            name: 'isActive',
-            fieldType: 'Boolean',
-            isOptional: false,
-            isList: false,
-            attributes: [],
-          },
-          {
-            name: 'createdAt',
-            fieldType: 'DateTime',
-            isOptional: false,
-            isList: false,
-            attributes: [],
-          },
-        ],
-        attributes: [],
-      },
-    ],
-    enums: [],
-    generators: [],
-    datasources: [],
+const dummySpan: Span = { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } }
+
+function makeAttr(
+  name: string,
+  args: Array<{ name?: string; value: string | number | boolean | Array<string | number | boolean> }> = [],
+): AttributeAST {
+  return {
+    type: 'Attribute',
+    span: dummySpan,
+    name,
+    args: args.map((a) => ({
+      type: 'AttributeArgument',
+      span: dummySpan,
+      name: a.name,
+      value: a.value,
+    })),
   }
+}
+
+function makeField(
+  name: string,
+  fieldType: string,
+  opts: { isOptional?: boolean; isList?: boolean; attributes?: AttributeAST[] } = {},
+): FieldAST {
+  return {
+    type: 'Field',
+    span: dummySpan,
+    name,
+    fieldType,
+    isOptional: opts.isOptional ?? false,
+    isList: opts.isList ?? false,
+    attributes: opts.attributes ?? [],
+  }
+}
+
+function makeSchema(models: Array<{ name: string; fields: FieldAST[]; attributes?: AttributeAST[] }>): SchemaAST {
+  return {
+    type: 'Schema',
+    span: dummySpan,
+    datasources: [],
+    generators: [],
+    enums: [],
+    types: [],
+    views: [],
+    models: models.map((m) => ({
+      type: 'Model',
+      span: dummySpan,
+      name: m.name,
+      attributes: m.attributes ?? [],
+      fields: m.fields,
+    })),
+  }
+}
+
+describe('ClientGenerator', () => {
+  const mockSchema = makeSchema([
+    {
+      name: 'User',
+      fields: [
+        makeField('id', 'Int', { attributes: [makeAttr('id')] }),
+        makeField('email', 'String'),
+        makeField('isActive', 'Boolean'),
+        makeField('createdAt', 'DateTime'),
+      ],
+    },
+  ])
 
   it('should generate client with SQLite transformations by default', () => {
     const generator = new ClientGenerator(mockSchema)
@@ -120,35 +144,17 @@ describe('ClientGenerator', () => {
   })
 
   it('keys timestamp defaults on attributes, not field names', () => {
-    const schema: SchemaAST = {
-      models: [
-        {
-          name: 'Post',
-          fields: [
-            { name: 'id', fieldType: 'Int', isOptional: false, isList: false, attributes: [{ name: 'id', args: [] }] },
-            { name: 'title', fieldType: 'String', isOptional: false, isList: false, attributes: [] },
-            {
-              name: 'createdAt',
-              fieldType: 'DateTime',
-              isOptional: false,
-              isList: false,
-              attributes: [{ name: 'default', args: [] }],
-            },
-            {
-              name: 'updatedAt',
-              fieldType: 'DateTime',
-              isOptional: false,
-              isList: false,
-              attributes: [{ name: 'updatedAt', args: [] }],
-            },
-          ],
-          attributes: [],
-        },
-      ],
-      enums: [],
-      generators: [],
-      datasources: [],
-    }
+    const schema = makeSchema([
+      {
+        name: 'Post',
+        fields: [
+          makeField('id', 'Int', { attributes: [makeAttr('id')] }),
+          makeField('title', 'String'),
+          makeField('createdAt', 'DateTime', { attributes: [makeAttr('default')] }),
+          makeField('updatedAt', 'DateTime', { attributes: [makeAttr('updatedAt')] }),
+        ],
+      },
+    ])
     const output = new ClientGenerator(schema).generateClientModule()
 
     // @default(now()) fills in only when the caller passed no value (explicit wins).
@@ -177,128 +183,32 @@ describe('ClientGenerator', () => {
   })
 
   it('should generate relation include types and logic', () => {
-    const schemaWithRelations: SchemaAST = {
-      models: [
-        {
-          name: 'User',
-          fields: [
-            {
-              name: 'id',
-              fieldType: 'Int',
-              isOptional: false,
-              isList: false,
-              attributes: [
-                {
-                  name: 'id',
-                  args: [],
-                  type: 'Attribute',
-                  span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-                },
-              ],
-              type: 'Field',
-              span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-            },
-            {
-              name: 'name',
-              fieldType: 'String',
-              isOptional: false,
-              isList: false,
-              attributes: [],
-              type: 'Field',
-              span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-            },
-            {
-              name: 'posts',
-              fieldType: 'Post',
-              isOptional: false,
-              isList: true,
-              attributes: [],
-              type: 'Field',
-              span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-            },
-          ],
-          attributes: [],
-          type: 'Model',
-          span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-        },
-        {
-          name: 'Post',
-          fields: [
-            {
-              name: 'id',
-              fieldType: 'Int',
-              isOptional: false,
-              isList: false,
-              attributes: [
-                {
-                  name: 'id',
-                  args: [],
-                  type: 'Attribute',
-                  span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-                },
-              ],
-              type: 'Field',
-              span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-            },
-            {
-              name: 'title',
-              fieldType: 'String',
-              isOptional: false,
-              isList: false,
-              attributes: [],
-              type: 'Field',
-              span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-            },
-            {
-              name: 'userId',
-              fieldType: 'Int',
-              isOptional: false,
-              isList: false,
-              attributes: [],
-              type: 'Field',
-              span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-            },
-            {
-              name: 'user',
-              fieldType: 'User',
-              isOptional: false,
-              isList: false,
-              attributes: [
-                {
-                  name: 'relation',
-                  args: [
-                    {
-                      name: 'fields',
-                      value: ['userId'],
-                      type: 'AttributeArgument',
-                      span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-                    },
-                    {
-                      name: 'references',
-                      value: ['id'],
-                      type: 'AttributeArgument',
-                      span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-                    },
-                  ],
-                  type: 'Attribute',
-                  span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-                },
-              ],
-              type: 'Field',
-              span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-            },
-          ],
-          attributes: [],
-          type: 'Model',
-          span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-        },
-      ],
-      enums: [],
-      generators: [],
-      datasources: [],
-      type: 'Schema',
-      span: { start: { line: 1, column: 1, offset: 0 }, end: { line: 1, column: 1, offset: 0 } },
-    }
+    const schemaWithRelations = makeSchema([
+      {
+        name: 'User',
+        fields: [
+          makeField('id', 'Int', { attributes: [makeAttr('id')] }),
+          makeField('name', 'String'),
+          makeField('posts', 'Post', { isList: true }),
+        ],
+      },
+      {
+        name: 'Post',
+        fields: [
+          makeField('id', 'Int', { attributes: [makeAttr('id')] }),
+          makeField('title', 'String'),
+          makeField('userId', 'Int'),
+          makeField('user', 'User', {
+            attributes: [
+              makeAttr('relation', [
+                { name: 'fields', value: ['userId'] },
+                { name: 'references', value: ['id'] },
+              ]),
+            ],
+          }),
+        ],
+      },
+    ])
 
     const generator = new ClientGenerator(schemaWithRelations)
     const output = generator.generateClientModule()
