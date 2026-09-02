@@ -1028,7 +1028,6 @@ ${fields.join('\n')}
 
     const hasRelations = relations.length > 0
 
-    // assert no include option for read methods, boolean include for write methods
     const readIncludeGuard = (method: string): string =>
       hasRelations ? 'assertBooleanInclude(args)' : `assertNoIncludeOption(args, '${model.name}.${method}')`
     const writeArgsGuards = (method: string): string =>

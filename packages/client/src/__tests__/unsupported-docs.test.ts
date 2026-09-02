@@ -1,12 +1,6 @@
 /**
- * Keeps the human-readable "Not yet supported" list in the repo-root README.md
- * generated from `packages/client/src/unsupported.ts` instead of hand-maintained.
- *
- * The README block between the markers below is rendered from
- * `UNSUPPORTED_FEATURES`, so the docs cannot drift from the code that enforces
- * them. When the registry changes, re-run this file with `ORK_UPDATE_DOCS=1` and
- * it rewrites the block in place:
- *
+ * The README "Not yet supported" block is rendered from `UNSUPPORTED_FEATURES`, never
+ * hand-edited. Regenerate after a registry change:
  *   ORK_UPDATE_DOCS=1 pnpm --filter @ork-orm/client test unsupported-docs
  */
 

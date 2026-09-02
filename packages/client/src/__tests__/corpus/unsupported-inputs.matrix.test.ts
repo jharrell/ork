@@ -1,22 +1,11 @@
 /**
- * Conformance corpus for Ork's unsupported-input surface.
+ * Each case is tagged with the id it enforces; the ratchet at the bottom asserts set
+ * equality with the runtime-enforced half of `UNSUPPORTED_FEATURES`.
  *
- * Every case is tagged with the `UnsupportedFeatureId` it enforces, and the
- * ratchet at the bottom of this file asserts SET EQUALITY between those tags and
- * the runtime-enforced half of `UNSUPPORTED_FEATURES`. That makes the registry in
- * `packages/client/src/unsupported.ts` the single source of truth: a new registry
- * entry cannot land without a case, and a case cannot outlive its registry entry.
- *
- * Assertions deliberately do NOT match full message prose — the registry owns the
- * wording, so duplicating it here would just be a second place to drift. Cases
- * assert the error identity (`instanceof OrkNotImplementedError`), the registry id
- * (`error.feature`), and at most the dynamic detail (relation name, field name,
- * operator) that proves the throw names the right thing.
- *
- * The `@ts-expect-error` directives are load-bearing: these options are absent
- * from the generated arg types on purpose, so each case proves the compiler AND
- * the runtime both reject the input. Offending expressions are kept on a single
- * line so the directive suppresses the error wherever TypeScript pins it.
+ * Cases assert error identity and `error.feature`, never the full message — the
+ * registry owns the wording. The `@ts-expect-error` directives are load-bearing: each
+ * case proves the compiler and the runtime both reject the input, so the offending
+ * expression stays on one line where TypeScript pins the error.
  */
 
 // `OrkNotImplementedError` comes from the built package because that is the exact

@@ -13,6 +13,21 @@ Context for contributors and coding agents working on Ork.
 The README's Status table is the source of truth for what currently works; keep it
 honest when you change behavior.
 
+## Comments
+
+A comment earns its line or gets deleted. Reviewers hold this bar, and so should agents.
+
+- **Why, not what.** If it restates the code, drop it. `client-generator.ts` carried
+  `// assert no include option for read methods, boolean include for write methods` above a ternary that does the
+  opposite — nothing typechecks prose, so narration rots into lies.
+- **One line by default**, two or three when the reason is genuinely subtle: a dialect quirk, a silent-corruption
+  trap, a load-bearing `@ts-expect-error`. File headers cap at ~6 lines.
+- **No design memos, no changelogs, no restating the issue.** Cite it instead: `See ork-tracker#58`.
+- **Name the trap.** The comments worth keeping read like `` `not: { contains: 'x' }` would otherwise compare the
+column against "[object Object]" and quietly match nothing `` — a specific bug the next reader would reintroduce.
+- **Generated code follows the same bar.** Comment strings in the generator are emitted into every client, so
+  verbosity there is multiplied by the model count.
+
 ## Project Snapshot
 
 - **Name**: Ork ORM (early alpha; packages are published at `0.0.1-alpha.x`).

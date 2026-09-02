@@ -1,22 +1,9 @@
 /**
- * The single source of truth for Ork's unsupported-feature universe.
+ * Single source of truth for what Ork alpha does not implement.
  *
- * Every place that talks about a feature Ork alpha does not implement derives from
- * `UNSUPPORTED_FEATURES` in this file:
- * - runtime throw sites in the generated client reference registry ids,
- * - the conformance corpus asserts that each entry is actually enforced,
- * - the schema-generation checks report unsupported schema constructs by id,
- * - the human-readable list in README.md is generated from this registry and its
- *   freshness is enforced by a test.
- *
- * Consequences of that arrangement, which are the point of it:
- * - Adding an entry requires adding an enforcement test for it.
- * - Implementing a feature means deleting its entry; the coverage tests then fail
- *   until the enforcement site and the generated docs block are updated too.
- *
- * See jharrell/ork-tracker#9 (every unimplemented input must throw a NotImplemented
- * error naming the feature) and jharrell/ork-tracker#58 (the unsupported-feature list
- * must be a machine-checked artifact with a single source of truth in code).
+ * Throw sites, the conformance ratchets, and the generated README block all read
+ * `UNSUPPORTED_FEATURES`, so implementing a feature means deleting its entry and
+ * letting the failing tests name what else to update. See ork-tracker#9, #58.
  */
 
 /**
